@@ -1,0 +1,1644 @@
+---
+title: "srs_sleep_paper_tab_fig"
+author: "Amanda Halliday"
+date: "2025-03-26"
+output: html_document
+---
+
+```{r}
+# VCU DATA DEMOGRAPHIC INFO (Table 1)
+
+rm(list=ls())
+library(OpenMx)
+library(dplyr)
+library(tidyverse)
+
+# Load Data
+vcu_long_imp <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu_long_imp.csv") # Long df of all vcu participants with imputed scores and demo info as of 4/3/25
+vcu25w_imp <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu25w_imp.csv") # Wide df of all vcu participants with imputed & resiudalized scores w/o demo info as of 4/3/25
+vcu25w_imp_log_inc_07 <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu25w_imp_log_inc_07.csv") # Wide df of all participants including solo pairs as of 5/27/25
+vcu25w_med_imp_log_07 <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu25w_med_imp_log_07.csv")
+
+# # Remove duplicate TIDs for easier merge in wide format
+# vcu_short_imp <- vcu_long_imp %>%
+#   distinct(TID, .keep_all = TRUE)
+
+vcu_wide_demo <- vcu25w_med_imp_log_07 %>%
+  # left_join(vcu_short_imp %>% select(TID, race, age), by = "TID") %>%
+  filter(zygo != "U") # Removing unknown zygosity pairs
+
+demVars <- c('TID', 'zygo', 'race', 'age') # Choosing variables of interest
+
+mzfDem <- subset(vcu_wide_demo, (zygo == "MZ" & sex_T1 == 2 & sex_T2 == 2), select = demVars)
+dzfDem <- subset(vcu_wide_demo, (zygo == "DZ" & sex_T1 == 2 & sex_T2 == 2), select = demVars)
+mzmDem <- subset(vcu_wide_demo, (zygo == "MZ" & sex_T1 == 1 & sex_T2 == 1), select = demVars)
+dzmDem <- subset(vcu_wide_demo, (zygo == "DZ" & sex_T1 == 1 & sex_T2 == 1), select = demVars)
+dzoDem <- subset(vcu_wide_demo, (zygo == "DZ" & sex_T1 != sex_T2), select = demVars)
+
+
+# Table of participants by age
+# Function to bin ages
+age_group_summary <- function(data) {
+  data %>%
+    mutate(age_group = case_when(
+      age >= 6 & age <= 9 ~ "6-9",
+      age >= 10 & age <= 13 ~ "10-13",
+      age >= 14 & age <= 17 ~ "14-17",
+      TRUE ~ NA_character_  # Optional: filter out ages outside 6-17
+    )) %>%
+    filter(!is.na(age_group)) %>%  # Remove NAs if any
+    count(age_group) %>%
+    arrange(age_group)
+}
+
+# Apply to each dataframe
+mzf_age_group <- age_group_summary(mzfDem)
+dzf_age_group <- age_group_summary(dzfDem)
+mzm_age_group <- age_group_summary(mzmDem)
+dzm_age_group <- age_group_summary(dzmDem)
+dzo_age_group <- age_group_summary(dzoDem)
+# Get age group breakdown for the whole population
+all_age_group <- age_group_summary(vcu_wide_demo)
+
+# Table of participants by race category
+mzf_race <- mzfDem %>%
+  count(race) %>%
+  arrange(race)
+dzf_race <- dzfDem %>%
+  count(race) %>%
+  arrange(race)
+mzm_race <- mzmDem %>%
+  count(race) %>%
+  arrange(race)
+dzm_race <- dzmDem %>%
+  count(race) %>%
+  arrange(race)
+dzo_race <- dzoDem %>%
+  count(race) %>%
+  arrange(race)
+all_race <- vcu_wide_demo %>%
+  count(race) %>%
+  arrange(race)
+
+```
+
+
+```{r}
+# ABCD DATA DEMOGRAPHIC INFO (Table 2)
+rm(list=ls())
+library(OpenMx)
+library(dplyr)
+library(tidyverse)
+
+abcd25w <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/abcd25w.csv")
+abcd_long <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/abcd_long.csv")
+
+# Remove duplicate TIDs for easier merge in wide format
+abcd_short <- abcd_long %>%
+  distinct(TID, .keep_all = TRUE)
+
+abcd_wide_demo <- abcd25w %>%
+  left_join(abcd_short %>% select(TID, isCA:isOTH), by = "TID")
+
+mzfDem <- subset(abcd_wide_demo, (zygo == "MZ" & sex_T1 == 2 & sex_T2 == 2), select = isCA:isOTH)
+dzfDem <- subset(abcd_wide_demo, (zygo == "DZ" & sex_T1 == 2 & sex_T2 == 2), select = isCA:isOTH)
+mzmDem <- subset(abcd_wide_demo, (zygo == "MZ" & sex_T1 == 1 & sex_T2 == 1), select = isCA:isOTH)
+dzmDem <- subset(abcd_wide_demo, (zygo == "DZ" & sex_T1 == 1 & sex_T2 == 1), select = isCA:isOTH)
+dzoDem <- subset(abcd_wide_demo, (zygo == "DZ" & sex_T1 != sex_T2), select = isCA:isOTH)
+allDem <- subset(abcd_wide_demo, select = isCA:isOTH)
+
+mzf_num <- mzfDem %>%
+  summarise(across(everything(), ~sum(. == 1))) %>%
+  pivot_longer(cols = everything(), names_to = "Column", values_to = "Count_of_1s")
+dzf_num <- dzfDem %>%
+  summarise(across(everything(), ~sum(. == 1))) %>%
+  pivot_longer(cols = everything(), names_to = "Column", values_to = "Count_of_1s")
+mzm_num <- mzmDem %>%
+  summarise(across(everything(), ~sum(. == 1))) %>%
+  pivot_longer(cols = everything(), names_to = "Column", values_to = "Count_of_1s")
+dzm_num <- dzmDem %>%
+  summarise(across(everything(), ~sum(. == 1))) %>%
+  pivot_longer(cols = everything(), names_to = "Column", values_to = "Count_of_1s")
+dzo_num <- dzoDem %>%
+  summarise(across(everything(), ~sum(. == 1))) %>%
+  pivot_longer(cols = everything(), names_to = "Column", values_to = "Count_of_1s")
+all_num <- allDem %>%
+  summarise(across(everything(), ~sum(. == 1))) %>%
+  pivot_longer(cols = everything(), names_to = "Column", values_to = "Count_of_1s")
+
+
+```
+
+```{r}
+# VCU DATA Histograms and SRS vs. Sleep Correlation
+# Updated 5/29/25
+
+# rm(list=ls())
+# library(OpenMx)
+# library(dplyr)
+# library(tidyverse)
+
+# Palette
+ahPal <- c("#E76254FF", "#EF8A47FF", "#F7AA58FF", "#FFD06FFF", "#FFE6B7FF", "#AADCE0FF", "#72BCD5FF", "#528FADFF", "#376795FF", "#1E466EFF")
+
+
+# Load Data
+vcu_long_imp <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu_long_imp.csv") # Long df of all vcu participants with imputed scores and demo info as of 3/25/25
+vcu25w_imp <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu25w_imp.csv") # Wide df of all vcu participants with imputed & resiudalized scores w/o demo info as of 3/25/25
+vcu25w_med_imp_log_07 <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu25w_med_imp_log_07.csv")
+
+vcu_wide_demo <- vcu25w_med_imp_log_07 %>%
+  # left_join(vcu_short_imp %>% select(TID, race, age), by = "TID") %>%
+  filter(zygo != "U") # Removing unknown zygosity pairs
+
+# Convert from wide to long format
+vcu25l_imp <- vcu_wide_demo %>%
+  pivot_longer(
+    cols = matches("_T[12]$"), # Selects all columns ending in _T1 or _T2
+    names_to = c(".value", "Twin"), # Splits names into the base variable name and twin number
+    names_sep = "_T"
+  ) %>%
+  mutate(Twin = paste0("T", Twin)) # Renaming Twin values to "T1" and "T2" for clarity
+
+# Subtracting 65 from the SRS score for easier visualization 4/21/25
+# vcu25l_imp$srs_imp <- vcu25l_imp$srs_imp - 65
+
+
+# Histogram of SRS scores
+hist(vcu25l_imp$srs_med_imp, 
+     breaks = seq(min(vcu25l_imp$srs_med_imp, na.rm = TRUE), 
+                  max(vcu25l_imp$srs_med_imp, na.rm = TRUE), 
+                  by = 1), 
+     xaxt = "n",
+     main = "Histogram of SRS Score", 
+     xlab = "SRS Score", 
+     ylab = "Number of Individuals", 
+     col = "#EF8A47FF", 
+     border = "black",
+     cex.main = 1.8,  # Increase title size
+     cex.lab = 1.5,   # Increase x and y axis labels size
+     cex.axis = 1.3)  # Increase tick mark labels size
+
+# Customize x-axis labels
+axis(1, at = seq(65, 260, by = 5), cex.axis = 1.3)
+
+# Boxplot of SRS scores by sex
+sum_stats_srs_sex <- vcu25l_imp %>%
+  group_by(sex) %>%
+  summarise(
+    Mean = mean(srs_med_imp, na.rm = TRUE),
+    Median = median(srs_med_imp, na.rm = TRUE),
+    Min = min(srs_med_imp, na.rm = TRUE),
+    Max = max(srs_med_imp, na.rm = TRUE)
+  )
+
+# Boxplot of SRS scores by sex with labeled categories
+ggplot(vcu25l_imp, aes(x = factor(sex), y = srs_med_imp, fill = factor(sex))) +
+  geom_boxplot(fill = "#EF8A47FF", outlier.shape = NA) +
+  geom_jitter(width = 0.2, alpha = 0.3) +  # Optional: Add jitter to show individual points
+  labs(title = "SRS-2 Scores by Sex", 
+       x = "Sex", 
+       y = "SRS Score") +
+  scale_x_discrete(labels = c("1" = "Males", "2" = "Females")) +  # Rename x-axis categories
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 18, face = "bold"),
+    axis.title.x = element_text(size = 16),  
+    axis.title.y = element_text(size = 16),  
+    axis.text.x = element_text(size = 14),  
+    axis.text.y = element_text(size = 14),
+    panel.grid.major = element_blank(),  
+    panel.grid.minor = element_blank(),  
+    panel.border = element_blank(),  
+    axis.line.x = element_line(color = "black", linewidth = 0.5),  # Use linewidth instead of size
+    axis.line.y = element_line(color = "black", linewidth = 0.5),  
+    axis.ticks = element_line(color = "black")  
+  )
+
+# Boxplot of SRS scores by age
+sum_stats_srs_age <- vcu25l_imp %>%
+  group_by(age) %>%
+  summarise(
+    Mean = mean(srs_med_imp, na.rm = TRUE),
+    Median = median(srs_med_imp, na.rm = TRUE),
+    Min = min(srs_med_imp, na.rm = TRUE),
+    Max = max(srs_med_imp, na.rm = TRUE)
+  )
+ggplot(vcu25l_imp, aes(x = factor(age), y = srs_med_imp, fill = factor(age))) +
+  geom_boxplot(fill = "#EF8A47FF", outlier.shape = NA) +
+  geom_jitter(width = 0.2, alpha = 0.3) + # Optional: Add jitter to show individual points
+  labs(title = "SRS-2 Scores by Age", 
+       x = "Age (years)", 
+       y = "SRS Score") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 18, face = "bold"),
+    axis.title.x = element_text(size = 16),  
+    axis.title.y = element_text(size = 16),  
+    axis.text.x = element_text(size = 14),  
+    axis.text.y = element_text(size = 14),
+    panel.grid.major = element_blank(),  
+    panel.grid.minor = element_blank(),  
+    panel.border = element_blank(),  
+    axis.line.x = element_line(color = "black", linewidth = 0.5),  # Use linewidth instead of size
+    axis.line.y = element_line(color = "black", linewidth = 0.5),  
+    axis.ticks = element_line(color = "black")  
+  ) # +
+  # Add text for mean and quartiles
+  # geom_text(data = sum_stats_srs_age, aes(label = paste("Mean: ", round(Mean, 1), 
+  #                             "\nMedian: ", round(Median, 1), 
+  #                             "\nMin: ", round(Min, 1), 
+  #                             "\nMax: ", round(Max, 1)),  
+  #                                    x = factor(age), y = 200), # Positioning the text above the boxplot
+  #           hjust = 0.5, size = 3, color = "black")
+  
+# Boxplot of SRS scores by race
+sum_stats_srs_race <- vcu25l_imp %>%
+  group_by(race) %>%
+  summarise(
+    Mean = mean(srs_med_imp, na.rm = TRUE),
+    Median = median(srs_med_imp, na.rm = TRUE),
+    Min = min(srs_med_imp, na.rm = TRUE),
+    Max = max(srs_med_imp, na.rm = TRUE)
+  )
+ggplot(vcu25l_imp, aes(x = factor(race), y = srs_med_imp, fill = factor(race))) +
+  geom_boxplot(fill = "#EF8A47FF", outlier.shape = NA) +
+  geom_jitter(width = 0.2, alpha = 0.3) + # Optional: Add jitter to show individual points
+  labs(title = "SRS-2 Scores by Race", 
+       x = "Race/Ethnicity", 
+       y = "SRS Score") +
+  scale_x_discrete(labels = c("White", "African American", "Hispanic", "Asian", "Mixed/Other", "Unknown/NA")) +  # Customize x-axis labels
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 18, face = "bold"),
+    axis.title.x = element_text(size = 16),  
+    axis.title.y = element_text(size = 16),  
+    axis.text.x = element_text(size = 10),  
+    axis.text.y = element_text(size = 14),
+    panel.grid.major = element_blank(),  
+    panel.grid.minor = element_blank(),  
+    panel.border = element_blank(),  
+    axis.line.x = element_line(color = "black", linewidth = 0.5),  # Use linewidth instead of size
+    axis.line.y = element_line(color = "black", linewidth = 0.5),  
+    axis.ticks = element_line(color = "black")  
+  ) # +
+  # Add text for mean and quartiles
+  # geom_text(data = sum_stats_srs_race, aes(label = paste("Mean: ", round(Mean, 1), 
+  #                             "\nMedian: ", round(Median, 1), 
+  #                             "\nMin: ", round(Min, 1), 
+  #                             "\nMax: ", round(Max, 1)),  
+  #                                     x = factor(race), y = 200), # Positioning the text above the boxplot
+  #           hjust = 0.5, size = 3, color = "black")
+
+# hist(vcu25l_imp$ssrs_imp, 
+#      breaks = seq(11, 44, by = 1),  # Ensures bins start at 11 and end at 44 with 1-point intervals
+#      xaxt = "n",  # Suppress default x-axis
+#      main = "Histogram of 11-Item SRS-2 Score", 
+#      xlab = "11-Item SRS-2 Score", 
+#      ylab = "Number of Individuals", 
+#      col = "#F7AA58FF", 
+#      border = "black",
+#      cex.main = 1.8,  # Increase title size
+#      cex.lab = 1.5,   # Increase x and y axis labels size
+#      cex.axis = 1.3,
+#      ylim = c(0, 800))  # Set y-axis limits from 0 to 800  
+# 
+# # Customize axis 
+# axis(1, at = seq(11, 44, by = 1), cex.axis = 1.3)
+# axis(2, at = seq(0, 800, by = 200), cex.axis = 1.3)
+# 
+# # Boxplot of ssrs scores by sex
+# sum_stats_ssrs_sex <- vcu25l_imp %>%
+#   group_by(sex) %>%
+#   summarise(
+#     Mean = mean(ssrs_imp, na.rm = TRUE),
+#     Median = median(ssrs_imp, na.rm = TRUE),
+#     Min = min(ssrs_imp, na.rm = TRUE),
+#     Max = max(ssrs_imp, na.rm = TRUE)
+#   )
+# 
+# # Boxplot of ssrs scores by sex with labeled categories
+# ggplot(vcu25l_imp, aes(x = factor(sex), y = ssrs_imp, fill = factor(sex))) +
+#   geom_boxplot(fill = "#F7AA58FF", outlier.shape = NA) +
+#   geom_jitter(width = 0.2, alpha = 0.3) +  # Optional: Add jitter to show individual points
+#   labs(title = "11-Item SRS-2 Scores by Sex", 
+#        x = "Sex", 
+#        y = "11-Item SRS-2 Score") +
+#   scale_x_discrete(labels = c("1" = "Males", "2" = "Females")) +  # Rename x-axis categories
+#   theme_minimal() +
+#   theme(
+#     plot.title = element_text(size = 18, face = "bold"),
+#     axis.title.x = element_text(size = 16),  
+#     axis.title.y = element_text(size = 16),  
+#     axis.text.x = element_text(size = 14),  
+#     axis.text.y = element_text(size = 14),
+#     panel.grid.major = element_blank(),  
+#     panel.grid.minor = element_blank(),  
+#     panel.border = element_blank(),  
+#     axis.line.x = element_line(color = "black", linewidth = 0.5),  # Use linewidth instead of size
+#     axis.line.y = element_line(color = "black", linewidth = 0.5),  
+#     axis.ticks = element_line(color = "black")  
+#   )
+# 
+# # Boxplot of ssrs scores by age
+# sum_stats_ssrs_age <- vcu25l_imp %>%
+#   group_by(age) %>%
+#   summarise(
+#     Mean = mean(ssrs_imp, na.rm = TRUE),
+#     Median = median(ssrs_imp, na.rm = TRUE),
+#     Min = min(ssrs_imp, na.rm = TRUE),
+#     Max = max(ssrs_imp, na.rm = TRUE)
+#   )
+# ggplot(vcu25l_imp, aes(x = factor(age), y = ssrs_imp, fill = factor(age))) +
+#   geom_boxplot(fill = "#F7AA58FF", outlier.shape = NA) +
+#   geom_jitter(width = 0.2, alpha = 0.3) + # Optional: Add jitter to show individual points
+#   labs(title = "11-Item SRS-2 Scores by Age", 
+#        x = "Age (years)", 
+#        y = "11-Item SRS-2 Score") +
+#   theme_minimal() +
+#   theme(
+#     plot.title = element_text(size = 18, face = "bold"),
+#     axis.title.x = element_text(size = 16),  
+#     axis.title.y = element_text(size = 16),  
+#     axis.text.x = element_text(size = 14),  
+#     axis.text.y = element_text(size = 14),
+#     panel.grid.major = element_blank(),  
+#     panel.grid.minor = element_blank(),  
+#     panel.border = element_blank(),  
+#     axis.line.x = element_line(color = "black", linewidth = 0.5),  # Use linewidth instead of size
+#     axis.line.y = element_line(color = "black", linewidth = 0.5),  
+#     axis.ticks = element_line(color = "black")  
+#   )
+#   
+# # Boxplot of ssrs scores by race
+# sum_stats_ssrs_race <- vcu25l_imp %>%
+#   group_by(race) %>%
+#   summarise(
+#     Mean = mean(ssrs_imp, na.rm = TRUE),
+#     Median = median(ssrs_imp, na.rm = TRUE),
+#     Min = min(ssrs_imp, na.rm = TRUE),
+#     Max = max(ssrs_imp, na.rm = TRUE)
+#   )
+# ggplot(vcu25l_imp, aes(x = factor(race), y = ssrs_imp, fill = factor(race))) +
+#   geom_boxplot(fill = "#F7AA58FF", outlier.shape = NA) +
+#   geom_jitter(width = 0.2, alpha = 0.3) + # Optional: Add jitter to show individual points
+#   labs(title = "11-Item SRS-2 Scores by Race", 
+#        x = "Race/Ethnicity", 
+#        y = "11-Item SRS-2 Score") +
+#   scale_x_discrete(labels = c("White", "African American", "Hispanic", "Asian", "Mixed/Other", "Unknown/NA")) +  # Customize x-axis labels
+#   theme_minimal() +
+#   theme(
+#     plot.title = element_text(size = 18, face = "bold"),
+#     axis.title.x = element_text(size = 16),  
+#     axis.title.y = element_text(size = 16),  
+#     axis.text.x = element_text(size = 10),  
+#     axis.text.y = element_text(size = 14),
+#     panel.grid.major = element_blank(),  
+#     panel.grid.minor = element_blank(),  
+#     panel.border = element_blank(),  
+#     axis.line.x = element_line(color = "black", linewidth = 0.5),  # Use linewidth instead of size
+#     axis.line.y = element_line(color = "black", linewidth = 0.5),  
+#     axis.ticks = element_line(color = "black")  
+#   )
+
+
+# Histogram of sds scores
+hist(vcu25l_imp$sds_med_imp, 
+     breaks = seq(26, 90, by = 1), 
+     xaxt = "n",
+     main = "Histogram of SDSC Score", 
+     xlab = "SDSC Score", 
+     ylab = "Number of Individuals", 
+     col = "#528FADFF", 
+     border = "black",
+     cex.main = 1.8,  # Increase title size
+     cex.lab = 1.5,   # Increase x and y axis labels size
+     cex.axis = 1.3,
+     ylim = c(0, 150))  # Set y-axis limits
+
+# Customize axis labels
+axis(1, at = seq(26, 90, by = 4), cex.axis = 1.3)
+axis(2, at = seq(0, 150, by = 50), cex.axis = 1.3)
+
+# Boxplot of sds scores by sex
+sum_stats_sds_sex <- vcu25l_imp %>%
+  group_by(sex) %>%
+  summarise(
+    Mean = mean(sds_med_imp, na.rm = TRUE),
+    Median = median(sds_med_imp, na.rm = TRUE),
+    Min = min(sds_med_imp, na.rm = TRUE),
+    Max = max(sds_med_imp, na.rm = TRUE)
+  )
+ggplot(vcu25l_imp, aes(x = factor(sex), y = sds_med_imp, fill = factor(sex))) +
+  geom_boxplot(fill = "#528FADFF", outlier.shape = NA) +
+  geom_jitter(width = 0.2, alpha = 0.3) + # Optional: Add jitter to show individual points
+  labs(title = "SDSC Scores by Sex", 
+       x = "Sex", 
+       y = "SDSC Score") +
+  scale_x_discrete(labels = c("1" = "Males", "2" = "Females")) +  # Rename x-axis categories
+  scale_y_continuous(limits = c(26, 90), breaks = seq(26, 90, 8)) + 
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 18, face = "bold"),
+    axis.title.x = element_text(size = 16),  
+    axis.title.y = element_text(size = 16),  
+    axis.text.x = element_text(size = 14),  
+    axis.text.y = element_text(size = 14),
+    panel.grid.major = element_blank(),  
+    panel.grid.minor = element_blank(),  
+    panel.border = element_blank(),  
+    axis.line.x = element_line(color = "black", linewidth = 0.5),  # Use linewidth instead of size
+    axis.line.y = element_line(color = "black", linewidth = 0.5),  
+    axis.ticks = element_line(color = "black")  
+  ) # +
+  # Add text for mean and quartiles
+  # geom_text(data = sum_stats_sds_sex, aes(label = paste("Mean: ", round(Mean, 1), 
+  #                             "\nMedian: ", round(Median, 1), 
+  #                             "\nMin: ", round(Min, 1), 
+  #                             "\nMax: ", round(Max, 1)),  
+  #                                    x = factor(sex), y = 200), # Positioning the text above the boxplot
+  #           hjust = 0.5, size = 3, color = "black")
+
+# Boxplot of sds scores by age
+sum_stats_sds_age <- vcu25l_imp %>%
+  group_by(age) %>%
+  summarise(
+    Mean = mean(sds_med_imp, na.rm = TRUE),
+    Median = median(sds_med_imp, na.rm = TRUE),
+    Min = min(sds_med_imp, na.rm = TRUE),
+    Max = max(sds_med_imp, na.rm = TRUE)
+  )
+ggplot(vcu25l_imp, aes(x = factor(age), y = sds_med_imp, fill = factor(age))) +
+  geom_boxplot(fill = "#528FADFF", outlier.shape = NA) +
+  geom_jitter(width = 0.2, alpha = 0.3) + # Optional: Add jitter to show individual points
+  labs(title = "SDSC Scores by Age", 
+       x = "Age (years)", 
+       y = "SDSC Score") +
+  theme_minimal() +
+  scale_y_continuous(limits = c(26, 90), breaks = seq(26, 90, 8)) + 
+  theme(
+    plot.title = element_text(size = 18, face = "bold"),
+    axis.title.x = element_text(size = 16),  
+    axis.title.y = element_text(size = 16),  
+    axis.text.x = element_text(size = 14),  
+    axis.text.y = element_text(size = 14),
+    panel.grid.major = element_blank(),  
+    panel.grid.minor = element_blank(),  
+    panel.border = element_blank(),  
+    axis.line.x = element_line(color = "black", linewidth = 0.5),  # Use linewidth instead of size
+    axis.line.y = element_line(color = "black", linewidth = 0.5),  
+    axis.ticks = element_line(color = "black")  
+  ) # +
+  # Add text for mean and quartiles
+  # geom_text(data = sum_stats_sds_age, aes(label = paste("Mean: ", round(Mean, 1), 
+  #                             "\nMedian: ", round(Median, 1), 
+  #                             "\nMin: ", round(Min, 1), 
+  #                             "\nMax: ", round(Max, 1)),  
+  #                                    x = factor(age), y = 200), # Positioning the text above the boxplot
+  #           hjust = 0.5, size = 3, color = "black")
+  
+# Boxplot of sds scores by race
+sum_stats_sds_race <- vcu25l_imp %>%
+  group_by(race) %>%
+  summarise(
+    Mean = mean(sds_med_imp, na.rm = TRUE),
+    Median = median(sds_med_imp, na.rm = TRUE),
+    Min = min(sds_med_imp, na.rm = TRUE),
+    Max = max(sds_med_imp, na.rm = TRUE)
+  )
+ggplot(vcu25l_imp, aes(x = factor(race), y = sds_med_imp, fill = factor(race))) +
+  geom_boxplot(fill = "#528FADFF", outlier.shape = NA) +
+  geom_jitter(width = 0.2, alpha = 0.3) + # Optional: Add jitter to show individual points
+  labs(title = "SDSC Scores by Race", 
+       x = "Race/Ethnicity", 
+       y = "SDSC Score") +
+  scale_x_discrete(labels = c("White", "African American", "Hispanic", "Asian", "Mixed/Other", "Unknown/NA")) +  # Customize x-axis labels
+  scale_y_continuous(limits = c(26, 90), breaks = seq(26, 90, 8)) + 
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 18, face = "bold"),
+    axis.title.x = element_text(size = 16),  
+    axis.title.y = element_text(size = 16),  
+    axis.text.x = element_text(size = 10),  
+    axis.text.y = element_text(size = 14),
+    panel.grid.major = element_blank(),  
+    panel.grid.minor = element_blank(),  
+    panel.border = element_blank(),  
+    axis.line.x = element_line(color = "black", linewidth = 0.5),  # Use linewidth instead of size
+    axis.line.y = element_line(color = "black", linewidth = 0.5),  
+    axis.ticks = element_line(color = "black")  
+  ) # +
+  # Add text for mean and quartiles
+  # geom_text(data = sum_stats_sds_race, aes(label = paste("Mean: ", round(Mean, 1), 
+  #                             "\nMedian: ", round(Median, 1), 
+  #                             "\nMin: ", round(Min, 1), 
+  #                             "\nMax: ", round(Max, 1)),  
+  #                                     x = factor(race), y = 200), # Positioning the text above the boxplot
+  #           hjust = 0.5, size = 3, color = "black")
+
+
+```
+```{r}
+# ------------------------------------------------------------------------------------------------------------------------------------
+# SRS CORRELATION GRAPHS
+# Updated 5/29/25
+
+ahPal <- c("#E76254FF", "#EF8A47FF", "#F7AA58FF", "#FFD06FFF", "#FFE6B7FF", "#AADCE0FF", "#72BCD5FF", "#528FADFF", "#376795FF", "#1E466EFF")
+
+# rm(list=ls())
+# library(OpenMx)
+# library(dplyr)
+# library(tidyverse)
+
+# Load Data
+vcu25w_imp <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu25w_imp.csv") # Wide df of all vcu participants with imputed & resiudalized scores w/o demo info as of 3/25/25
+vcu25w_med_imp_log_07 <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu25w_med_imp_log_07.csv")
+
+vcu_wide_demo <- vcu25w_med_imp_log_07 %>%
+  # left_join(vcu_short_imp %>% select(TID, race, age), by = "TID") %>%
+  filter(zygo != "U") # Removing unknown zygosity pairs
+
+# # Convert from wide to long format
+# vcu25l_imp <- vcu_wide_demo %>%
+#   pivot_longer(
+#     cols = matches("_T[12]$"), # Selects all columns ending in _T1 or _T2
+#     names_to = c(".value", "Twin"), # Splits names into the base variable name and twin number
+#     names_sep = "_T"
+#   ) %>%
+#   mutate(Twin = paste0("T", Twin)) # Renaming Twin values to "T1" and "T2" for clarity
+
+vars <- c('srs_med_imp','sds_med_imp') # list of variables names
+nv <- 2 # number of variables
+ntv <- nv*2 # number of total variables
+selVars <- paste(vars,c(rep("_T1",nv),rep("_T2",nv)),sep="")
+
+mzfData <- subset(vcu_wide_demo, (zygo == "MZ" & sex_T1 == 2 & sex_T2 == 2), select = selVars)
+dzfData <- subset(vcu_wide_demo, (zygo == "DZ" & sex_T1 == 2 & sex_T2 == 2), select = selVars)
+mzmData <- subset(vcu_wide_demo, (zygo == "MZ" & sex_T1 == 1 & sex_T2 == 1), select = selVars)
+dzmData <- subset(vcu_wide_demo, (zygo == "DZ" & sex_T1 == 1 & sex_T2 == 1), select = selVars)
+dzoData <- subset(vcu_wide_demo, (zygo == "DZ" & sex_T1 != sex_T2), select = selVars)
+mzData <- subset(vcu_wide_demo, (zygo == "MZ"), select = selVars)
+dzData <- subset(vcu_wide_demo, (zygo == "DZ"), select = selVars)
+
+allData <- bind_rows(
+  mzfData %>% mutate(group = "MZF"),
+  mzmData %>% mutate(group = "MZM"),
+  dzfData %>% mutate(group = "DZF"),
+  dzmData %>% mutate(group = "DZM"),
+  dzoData %>% mutate(group = "DZO")
+)
+
+library(psych)
+options(digits = 10)  # Increase precision for small p-values
+
+# List of your datasets
+group_list <- list(
+  mzf = mzfData,
+  dzf = dzfData,
+  mzm = mzmData,
+  dzm = dzmData,
+  dzo = dzoData,
+  mz  = mzData,
+  dz  = dzData
+)
+
+# Store results in a list
+corr_results <- lapply(group_list, function(data) {
+  corr.test(data, use = "pairwise")
+})
+
+# Example: view results
+corr_results$mzf$p  # p-value matrix with full precision
+corr_results$mzm$p  # p-value matrix with full precision
+corr_results$dzf$p  # p-value matrix with full precision
+corr_results$dzm$p  # p-value matrix with full precision
+corr_results$dzo$p  # p-value matrix with full precision
+corr_results$mz$p  # p-value matrix with full precision
+corr_results$dz$p  # p-value matrix with full precision
+
+# Optional: Check if all correlations in each group are significant
+sig_summary <- sapply(corr_results, function(res) {
+  all(res$p[lower.tri(res$p)] < 0.05)
+})
+
+print(sig_summary)
+
+shape_map <- c("MZF" = 16,  # filled circle = 16
+               "MZM" = 16,  # filled square = 15
+               "DZF" = 16,
+               "DZM" = 16,  # circle with outline = 21
+               "DZO" = 16)  # filled triangle = 17
+
+color_map <- c("MZF" = "#E76254FF",
+               "MZM" = "#376795FF",
+               "DZF" = "#F7AA58FF",
+               "DZM" = "#72BCD5FF",
+               "DZO" = "black")
+
+# Calculate correlation coefficients
+cor_mzf <- cor(mzfData,use="complete")
+cor_mzm <- cor(dzfData,use="complete")
+cor_dzf <- cor(mzmData,use="complete")
+cor_dzm <- cor(dzmData,use="complete")
+cor_dzo <- cor(dzoData,use="complete")
+cor(mzData,use="complete")
+cor(dzData,use="complete")
+
+# Create the plot
+ggplot(allData, aes(x = srs_med_imp_T1, y = srs_med_imp_T2, shape = group, fill = group)) +
+  geom_point(aes(color = group), alpha = 1, size = 2, show.legend = FALSE) +  # Ensure color mapping
+  geom_smooth(method = "lm", se = FALSE, aes(color = group)) +
+  scale_shape_manual(values = shape_map) +  # Shapes for different groups
+  scale_fill_manual(values = color_map) +   # Fill color for points
+  scale_color_manual(values = color_map) +  # Line colors for smooth
+  labs(title = "Cross-Twin SRS Score Correlation",
+       x = "SRS Score (Twin 1)",
+       y = "SRS Score (Twin 2)") +
+  # Set tick marks for both axes
+  scale_x_continuous(breaks = c(50, 100, 150, 200, 250)) +
+  scale_y_continuous(breaks = c(50, 100, 150, 200, 250)) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 18, face = "bold"),
+    axis.title.x = element_text(size = 16),  
+    axis.title.y = element_text(size = 16),  
+    axis.text.x = element_text(size = 16),  
+    axis.text.y = element_text(size = 16),
+    panel.grid.major = element_blank(),  
+    panel.grid.minor = element_blank(),  
+    panel.border = element_blank(),
+    axis.line.x = element_line(color = "black", linewidth = 0.5),  
+    axis.line.y = element_line(color = "black", linewidth = 0.5),  
+    axis.ticks = element_line(color = "black")  
+  )
+```
+
+```{r}
+# ------------------------------------------------------------------------------------------------------------------------------------
+# SDS CORRELATION GRAPHS
+# Updated 5/29/25
+
+ahPal <- c("#E76254FF", "#EF8A47FF", "#F7AA58FF", "#FFD06FFF", "#FFE6B7FF", "#AADCE0FF", "#72BCD5FF", "#528FADFF", "#376795FF", "#1E466EFF")
+
+# rm(list=ls())
+# library(OpenMx)
+# library(dplyr)
+# library(tidyverse)
+
+# Load Data
+vcu25w_imp <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu25w_imp.csv") # Wide df of all vcu participants with imputed & resiudalized scores w/o demo info as of 3/25/25
+vcu25w_med_imp_log_07 <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu25w_med_imp_log_07.csv")
+
+vcu_wide_demo <- vcu25w_med_imp_log_07 %>%
+  # left_join(vcu_short_imp %>% select(TID, race, age), by = "TID") %>%
+  filter(zygo != "U") # Removing unknown zygosity pairs
+
+# # Convert from wide to long format
+# vcu25l_imp <- vcu_wide_demo %>%
+#   pivot_longer(
+#     cols = matches("_T[12]$"), # Selects all columns ending in _T1 or _T2
+#     names_to = c(".value", "Twin"), # Splits names into the base variable name and twin number
+#     names_sep = "_T"
+#   ) %>%
+#   mutate(Twin = paste0("T", Twin)) # Renaming Twin values to "T1" and "T2" for clarity
+
+vars <- c('srs_med_imp','sds_med_imp') # list of variables names
+nv <- 2 # number of variables
+ntv <- nv*2 # number of total variables
+selVars <- paste(vars,c(rep("_T1",nv),rep("_T2",nv)),sep="")
+
+mzfData <- subset(vcu_wide_demo, (zygo == "MZ" & sex_T1 == 2 & sex_T2 == 2), select = selVars)
+dzfData <- subset(vcu_wide_demo, (zygo == "DZ" & sex_T1 == 2 & sex_T2 == 2), select = selVars)
+mzmData <- subset(vcu_wide_demo, (zygo == "MZ" & sex_T1 == 1 & sex_T2 == 1), select = selVars)
+dzmData <- subset(vcu_wide_demo, (zygo == "DZ" & sex_T1 == 1 & sex_T2 == 1), select = selVars)
+dzoData <- subset(vcu_wide_demo, (zygo == "DZ" & sex_T1 != sex_T2), select = selVars)
+mzData <- subset(vcu_wide_demo, (zygo == "MZ"), select = selVars)
+dzData <- subset(vcu_wide_demo, (zygo == "DZ"), select = selVars)
+
+allData <- bind_rows(
+  mzfData %>% mutate(group = "MZF"),
+  mzmData %>% mutate(group = "MZM"),
+  dzfData %>% mutate(group = "DZF"),
+  dzmData %>% mutate(group = "DZM"),
+  dzoData %>% mutate(group = "DZO")
+)
+
+shape_map <- c("MZF" = 16,  # filled circle = 16
+               "MZM" = 16,  # filled square = 15
+               "DZF" = 16,
+               "DZM" = 16,  # circle with outline = 21
+               "DZO" = 16)  # filled triangle = 17
+
+color_map <- c("MZF" = "#E76254FF",
+               "MZM" = "#376795FF",
+               "DZF" = "#F7AA58FF",
+               "DZM" = "#72BCD5FF",
+               "DZO" = "black")
+
+# Calculate correlation coefficients
+cor_mzf <- cor(mzfData,use="complete")
+cor_mzm <- cor(dzfData,use="complete")
+cor_dzf <- cor(mzmData,use="complete")
+cor_dzm <- cor(dzmData,use="complete")
+cor_dzo <- cor(dzoData,use="complete")
+cor(mzData,use="complete")
+cor(dzData,use="complete")
+
+# Create the plot
+ggplot(allData, aes(x = sds_med_imp_T1, y = sds_med_imp_T2, shape = group, fill = group)) +
+  geom_point(aes(color = group), alpha = 1, size = 2, show.legend = FALSE) +  # Ensure color mapping
+  geom_smooth(method = "lm", se = FALSE, aes(color = group)) +
+  scale_shape_manual(values = shape_map) +  # Shapes for different groups
+  scale_fill_manual(values = color_map) +   # Fill color for points
+  scale_color_manual(values = color_map) +  # Line colors for smooth
+  labs(title = "Cross-Twin SDSC Score Correlation",
+       x = "SDSC Score (Twin 1)",
+       y = "SDSC Score (Twin 2)") +
+  # Set tick marks for both axes
+  scale_x_continuous(breaks = c(25, 35, 45, 55, 65, 75, 85, 95)) +
+  scale_y_continuous(breaks = c(25, 35, 45, 55, 65, 75, 85, 95)) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 18, face = "bold"),
+    axis.title.x = element_text(size = 16),  
+    axis.title.y = element_text(size = 16),  
+    axis.text.x = element_text(size = 16),  
+    axis.text.y = element_text(size = 16),
+    panel.grid.major = element_blank(),  
+    panel.grid.minor = element_blank(),  
+    panel.border = element_blank(),
+    axis.line.x = element_line(color = "black", linewidth = 0.5),  
+    axis.line.y = element_line(color = "black", linewidth = 0.5),  
+    axis.ticks = element_line(color = "black")  
+  )
+```
+
+```{r}
+# ------------------------------------------------------------------------------------------------------------------------------------
+# WITHIN TWIN SRS vs SDSC CORRELATION
+# Updated 5/29/25
+
+ahPal <- c("#E76254FF", "#EF8A47FF", "#F7AA58FF", "#FFD06FFF", "#FFE6B7FF", "#AADCE0FF", "#72BCD5FF", "#528FADFF", "#376795FF", "#1E466EFF")
+
+# rm(list=ls())
+# library(OpenMx)
+# library(dplyr)
+# library(tidyverse)
+
+# Load Data
+vcu_long_imp <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu_long_imp.csv") # Long df of all vcu participants with imputed scores and demo info as of 3/25/25
+vcu25w_imp <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu25w_imp.csv") # Wide df of all vcu participants with imputed & resiudalized scores w/o demo info as of 3/25/25
+vcu25w_med_imp_log_07 <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu25w_med_imp_log_07.csv")
+
+vcu_wide_demo <- vcu25w_med_imp_log_07 %>%
+  # left_join(vcu_short_imp %>% select(TID, race, age), by = "TID") %>%
+  filter(zygo != "U") %>% # Removing unknown zygosity pairs
+  mutate(
+    zygo_group = case_when(
+      zygo == "MZ" & sex_T1 == 1 & sex_T2 == 1 ~ 1,  # Male MZ
+      zygo == "MZ" & sex_T1 == 2 & sex_T2 == 2 ~ 2,  # Female MZ
+      zygo == "DZ" & sex_T1 == 1 & sex_T2 == 1 ~ 3,  # Male DZ
+      zygo == "DZ" & sex_T1 == 2 & sex_T2 == 2 ~ 4,  # Female DZ
+      zygo == "DZ" & sex_T1 != sex_T2 ~ 5          # Opposite-sex DZ
+    ))
+
+# Convert from wide to long format
+# Get names of columns ending in _T1 or _T2
+twin_cols <- names(vcu_wide_demo)[grepl("_T[12]$", names(vcu_wide_demo))]
+# Pivot only those columns
+vcu25l_imp <- vcu_wide_demo %>%
+  select(TID, all_of(twin_cols)) %>%
+  pivot_longer(
+    cols = -TID,
+    names_to = c(".value", "Twin"),
+    names_sep = "_T"
+  ) %>%
+  mutate(Twin = paste0("T", Twin)) %>%
+  # Rejoin with shared variables
+  left_join(vcu_wide_demo %>% select(TID, zygo, zygo_group), by = "TID") %>%
+  rename(zygo_group = zygo_group.y)
+
+vars <- c('srs_med_imp','sds_med_imp') # list of variables names
+nv <- 2 # number of variables
+ntv <- nv*2 # number of total variables
+selVars <- paste(vars,c(rep("_T1",nv),rep("_T2",nv)),sep="")
+
+mzfData <- subset(vcu25l_imp, (zygo_group == 2), select = vars)
+dzfData <- subset(vcu25l_imp, (zygo_group == 4), select = vars)
+mzmData <- subset(vcu25l_imp, (zygo_group == 1), select = vars)
+dzmData <- subset(vcu25l_imp, (zygo_group == 3), select = vars)
+dzoData <- subset(vcu25l_imp, (zygo_group == 5), select = vars)
+mzData <- subset(vcu25l_imp, zygo_group %in% c(1, 2), select = vars)
+dzData <- subset(vcu25l_imp, zygo_group %in% c(3, 4, 5), select = vars)
+
+allData <- bind_rows(
+  mzfData %>% mutate(group = "MZF"),
+  mzmData %>% mutate(group = "MZM"),
+  dzfData %>% mutate(group = "DZF"),
+  dzmData %>% mutate(group = "DZM"),
+  dzoData %>% mutate(group = "DZO")
+)
+
+library(psych)
+options(digits = 10)  # Increase precision for small p-values
+
+# List of your datasets
+group_list <- list(
+  mzf = mzfData,
+  dzf = dzfData,
+  mzm = mzmData,
+  dzm = dzmData,
+  dzo = dzoData,
+  mz  = mzData,
+  dz  = dzData
+)
+
+# Store results in a list
+corr_results <- lapply(group_list, function(data) {
+  corr.test(data, use = "pairwise")
+})
+
+# Example: view results
+corr_results$mzf$r  # correlation matrix for mzfData
+corr_results$mzf$p  # p-value matrix with full precision
+corr_results$dzf$r  # correlation matrix for dzfData
+corr_results$dzf$p  # p-value matrix with full precision
+corr_results$mzm$r  # correlation matrix for mzmData
+corr_results$mzm$p  # p-value matrix with full precision
+corr_results$dzm$r  # correlation matrix for dzmData
+corr_results$dzm$p  # p-value matrix with full precision
+corr_results$dzo$r  # correlation matrix for dzoData
+corr_results$dzo$p  # p-value matrix with full precision
+corr_results$mz$r  # correlation matrix for mzData
+corr_results$mz$p  # p-value matrix with full precision
+corr_results$dz$r  # correlation matrix for dzData
+corr_results$dz$p  # p-value matrix with full precision
+
+
+# Optional: Check if all correlations in each group are significant
+sig_summary <- sapply(corr_results, function(res) {
+  all(res$p[lower.tri(res$p)] < 0.001)
+})
+
+print(sig_summary)
+
+shape_map <- c("MZF" = 16,  # filled circle = 16
+               "MZM" = 16,  # filled square = 15
+               "DZF" = 16,
+               "DZM" = 16,  # circle with outline = 21
+               "DZO" = 16)  # filled triangle = 17
+
+color_map <- c("MZF" = "#E76254FF",
+               "MZM" = "#376795FF",
+               "DZF" = "#F7AA58FF",
+               "DZM" = "#72BCD5FF",
+               "DZO" = "black")
+
+# Calculate correlation coefficients
+cor_mzf <- cor(mzfData,use="complete")
+cor_mzm <- cor(mzmData,use="complete")
+cor_dzf <- cor(dzfData,use="complete")
+cor_dzm <- cor(dzmData,use="complete")
+cor_dzo <- cor(dzoData,use="complete")
+cor_mz <- cor(mzData,use="complete")
+cor_dz <- cor(dzData,use="complete")
+
+cor(mzfData,use="complete")
+cor(dzfData,use="complete")
+cor(mzmData,use="complete")
+cor(dzmData,use="complete")
+cor(dzoData,use="complete")
+cor(mzData,use="complete")
+cor(dzData,use="complete")
+
+# Create the plot
+ggplot(allData, aes(x = srs_med_imp, y = sds_med_imp, shape = group, fill = group)) +
+  geom_point(aes(color = group), alpha = 1, size = 2, show.legend = FALSE) +  # Ensure color mapping
+  geom_smooth(method = "lm", se = FALSE, aes(color = group)) +
+  scale_shape_manual(values = shape_map) +  # Shapes for different groups
+  scale_fill_manual(values = color_map) +   # Fill color for points
+  scale_color_manual(values = color_map) +  # Line colors for smooth
+  labs(title = "Phenotypic Correlation",
+       x = "SRS Score",
+       y = "SDSC Score") +
+  # Set tick marks for both axes
+  scale_x_continuous(breaks = c(50, 100, 150, 200)) +
+  scale_y_continuous(breaks = c(25, 35, 45, 55, 65, 75, 85, 95)) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 18, face = "bold"),
+    axis.title.x = element_text(size = 16),  
+    axis.title.y = element_text(size = 16),  
+    axis.text.x = element_text(size = 16),  
+    axis.text.y = element_text(size = 16),
+    panel.grid.major = element_blank(),  
+    panel.grid.minor = element_blank(),  
+    panel.border = element_blank(),
+    axis.line.x = element_line(color = "black", linewidth = 0.5),  
+    axis.line.y = element_line(color = "black", linewidth = 0.5),  
+    axis.ticks = element_line(color = "black")  
+  )
+
+```
+
+```{r}
+# ------------------------------------------------------------------------------------------------------------------------------------
+# CROSS-TWIN CROSS-TRAIT
+# Updated 5/29/25
+
+ahPal <- c("#E76254FF", "#EF8A47FF", "#F7AA58FF", "#FFD06FFF", "#FFE6B7FF", "#AADCE0FF", "#72BCD5FF", "#528FADFF", "#376795FF", "#1E466EFF")
+
+# rm(list=ls())
+# library(OpenMx)
+# library(dplyr)
+# library(tidyverse)
+
+# Load Data
+vcu_long_imp <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu_long_imp.csv") # Long df of all vcu participants with imputed scores and demo info as of 3/25/25
+vcu25w_imp <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu25w_imp.csv") # Wide df of all vcu participants with imputed & resiudalized scores w/o demo info as of 3/25/25
+vcu25w_med_imp_log_07 <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu25w_med_imp_log_07.csv")
+
+vcu_wide_demo <- vcu25w_med_imp_log_07 %>%
+  # left_join(vcu_short_imp %>% select(TID, race, age), by = "TID") %>%
+  filter(zygo != "U") %>% # Removing unknown zygosity pairs
+  mutate(
+    zygo_group = case_when(
+      zygo == "MZ" & sex_T1 == 1 & sex_T2 == 1 ~ 1,  # Male MZ
+      zygo == "MZ" & sex_T1 == 2 & sex_T2 == 2 ~ 2,  # Female MZ
+      zygo == "DZ" & sex_T1 == 1 & sex_T2 == 1 ~ 3,  # Male DZ
+      zygo == "DZ" & sex_T1 == 2 & sex_T2 == 2 ~ 4,  # Female DZ
+      zygo == "DZ" & sex_T1 != sex_T2 ~ 5          # Opposite-sex DZ
+    ))
+
+# Convert from wide to long format
+# Get names of columns ending in _T1 or _T2
+twin_cols <- names(vcu_wide_demo)[grepl("_T[12]$", names(vcu_wide_demo))]
+# Pivot only those columns
+vcu25l_imp <- vcu_wide_demo %>%
+  select(TID, all_of(twin_cols)) %>%
+  pivot_longer(
+    cols = -TID,
+    names_to = c(".value", "Twin"),
+    names_sep = "_T"
+  ) %>%
+  mutate(Twin = paste0("T", Twin)) %>%
+  # Rejoin with shared variables
+  left_join(vcu_wide_demo %>% select(TID, zygo, zygo_group), by = "TID") %>%
+  rename(zygo_group = zygo_group.y)
+
+vcu25l_new <- vcu25w_imp %>%
+ pivot_longer(cols = starts_with("srs_imp"), 
+               names_to = "twin", 
+               names_pattern = "srs_imp_(T[12])", 
+               values_to = "srs_score") %>%
+  pivot_longer(cols = starts_with("sds_imp"), 
+               names_to = "co_twin", 
+               names_pattern = "sds_imp_(T[12])", 
+               values_to = "sds_score") %>%
+  filter(twin != co_twin)
+
+
+vars <- c('srs_score','sds_score') # list of variables names
+
+mzfData <- subset(vcu25l_new, (zygo_group == 2), select = vars)
+dzfData <- subset(vcu25l_new, (zygo_group == 4), select = vars)
+mzmData <- subset(vcu25l_new, (zygo_group == 1), select = vars)
+dzmData <- subset(vcu25l_new, (zygo_group == 3), select = vars)
+dzoData <- subset(vcu25l_new, (zygo_group == 5), select = vars)
+mzData <- subset(vcu25l_new, zygo_group %in% c(1, 2), select = vars)
+dzData <- subset(vcu25l_new, zygo_group %in% c(3, 4, 5), select = vars)
+
+
+allData <- bind_rows(
+  mzfData %>% mutate(group = "MZF"),
+  mzmData %>% mutate(group = "MZM"),
+  dzfData %>% mutate(group = "DZF"),
+  dzmData %>% mutate(group = "DZM"),
+  dzoData %>% mutate(group = "DZO")
+)
+
+library(psych)
+options(digits = 10)  # Increase precision for small p-values
+
+# List of your datasets
+group_list <- list(
+  mzf = mzfData,
+  dzf = dzfData,
+  mzm = mzmData,
+  dzm = dzmData,
+  dzo = dzoData,
+  mz  = mzData,
+  dz  = dzData
+)
+
+# Store results in a list
+corr_results <- lapply(group_list, function(data) {
+  corr.test(data, use = "pairwise")
+})
+
+# Example: view results
+corr_results$mzf$p  # p-value matrix with full precision
+corr_results$mzm$p  # p-value matrix with full precision
+corr_results$dzf$p  # p-value matrix with full precision
+corr_results$dzm$p  # p-value matrix with full precision
+corr_results$dzo$p  # p-value matrix with full precision
+corr_results$mz$p  # p-value matrix with full precision
+corr_results$dz$p  # p-value matrix with full precision
+
+shape_map <- c("MZF" = 16,  # filled circle = 16
+               "MZM" = 16,  # filled square = 15
+               "DZF" = 16,
+               "DZM" = 16,  # circle with outline = 21
+               "DZO" = 16)  # filled triangle = 17
+
+color_map <- c("MZF" = "#E76254FF",
+               "MZM" = "#376795FF",
+               "DZF" = "#F7AA58FF",
+               "DZM" = "#72BCD5FF",
+               "DZO" = "black")
+
+# Calculate correlation coefficients
+cor_mzf <- cor(mzfData,use="complete")
+cor_mzm <- cor(mzmData,use="complete")
+cor_dzf <- cor(dzfData,use="complete")
+cor_dzm <- cor(dzmData,use="complete")
+cor_dzo <- cor(dzoData,use="complete")
+cor_mz <- cor(mzData,use="complete")
+cor_dz <- cor(dzData,use="complete")
+
+# Create the plot
+ggplot(allData, aes(x = srs_score, y = sds_score, shape = group, fill = group)) +
+  geom_point(aes(color = group), alpha = 1, size = 2, show.legend = FALSE) +  # Ensure color mapping
+  geom_smooth(method = "lm", se = FALSE, aes(color = group)) +
+  scale_shape_manual(values = shape_map) +  # Shapes for different groups
+  scale_fill_manual(values = color_map) +   # Fill color for points
+  scale_color_manual(values = color_map) +  # Line colors for smooth
+  labs(title = "Cross-Twin Cross-Trait Correlation",
+       x = "SRS Score",
+       y = "SDSC Score") +
+  # Set tick marks for both axes
+  scale_x_continuous(breaks = c(50, 100, 150, 200)) +
+  scale_y_continuous(breaks = c(25, 35, 45, 55, 65, 75, 85, 95)) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 18, face = "bold"),
+    axis.title.x = element_text(size = 16),  
+    axis.title.y = element_text(size = 16),  
+    axis.text.x = element_text(size = 16),  
+    axis.text.y = element_text(size = 16),
+    panel.grid.major = element_blank(),  
+    panel.grid.minor = element_blank(),  
+    panel.border = element_blank(),
+    axis.line.x = element_line(color = "black", linewidth = 0.5),  
+    axis.line.y = element_line(color = "black", linewidth = 0.5),  
+    axis.ticks = element_line(color = "black")  
+  )
+
+
+```
+
+
+
+```{r}
+#ABCD SSRS
+
+abcd25w <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/abcd25w.csv")
+abcd_long <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/abcd_long.csv")
+
+# Convert from wide to long format
+abcd25l <- abcd25w %>%
+  pivot_longer(
+    cols = matches("_T[12]$"), # Selects all columns ending in _T1 or _T2
+    names_to = c(".value", "Twin"), # Splits names into the base variable name and twin number
+    names_sep = "_T"
+  ) %>%
+  mutate(Twin = paste0("T", Twin)) # Renaming Twin values to "T1" and "T2" for clarity
+
+# Remove duplicate TIDs for easier merge in wide format
+abcd_short <- abcd_long %>%
+  distinct(TID, .keep_all = TRUE)
+
+abcd25l <- abcd25l %>%
+  left_join(abcd_short %>% select(TID, age, isCA:isOTH), by = "TID") %>%
+  filter(zygo != "U") # Removing unknown zygosity pairs
+
+# Create a new 'race' column in abcd25l
+abcd25l$race <- NA  # Initialize with NA
+
+# Assign race values based on binary columns
+abcd25l$race[abcd25l$isCA == 1] <- 0  # White/Caucasian
+abcd25l$race[abcd25l$isAA == 1] <- 1  # African American/Black
+abcd25l$race[abcd25l$isHI == 1] <- 2  # Hispanic
+abcd25l$race[abcd25l$isAS == 1] <- 3  # Asian or Pacific Islander
+abcd25l$race[abcd25l$isMI == 1] <- 4  # Mixed or other race
+abcd25l$race[abcd25l$isOT == 1] <- 5  # Other/unknown
+
+# Assign site values based on binary columns
+abcd25l$site[abcd25l$isCUB == 1] <- "UCB"
+abcd25l$site[abcd25l$isUMN == 1] <- "UMN"
+abcd25l$site[abcd25l$isVCU == 1] <- "VCU"
+abcd25l$site[abcd25l$isWSL == 1] <- "WSL"
+abcd25l$site[abcd25l$isOTH == 1] <- "Other"
+
+# Histogram of ssrs scores
+hist(abcd25l$ssrs, 
+     breaks = seq(11, 44, by = 1),  # Ensures bins start at 11 and end at 44 with 1-point intervals
+     xaxt = "n",
+     main = "Histogram of 11-Item SRS-2 Score", 
+     xlab = "11-Item SRS-2 Score", 
+     ylab = "Number of Individuals", 
+     col = "#528FADFF", 
+     border = "black",
+     cex.main = 1.8,  # Increase title size
+     cex.lab = 1.5,   # Increase x and y axis labels size
+     cex.axis = 1.3,
+     ylim = c(0, 800))  # Set y-axis limits from 0 to 800  
+
+# Customize axis labels
+axis(1, at = seq(11, 44, by = 1), cex.axis = 1.3)
+axis(2, at = seq(0, 800, by = 200), cex.axis = 1.3)
+
+# Boxplot of ssrs scores by sex
+sum_stats_ssrs_sex <- abcd25l %>%
+  group_by(sex) %>%
+  summarise(
+    Mean = mean(ssrs, na.rm = TRUE),
+    Median = median(ssrs, na.rm = TRUE),
+    Min = min(ssrs, na.rm = TRUE),
+    Max = max(ssrs, na.rm = TRUE)
+  )
+
+# Boxplot of ssrs scores by sex with labeled categories
+ggplot(abcd25l, aes(x = factor(sex), y = ssrs, fill = factor(sex))) +
+  geom_boxplot(fill = "#528FADFF", outlier.shape = NA) +
+  geom_jitter(width = 0.2, alpha = 0.3) +  
+  labs(title = "11-Item SRS-2 Scores by Sex", 
+       x = "Sex", 
+       y = "11-Item SRS-2 Score") +
+  scale_x_discrete(labels = c("1" = "Males", "2" = "Females")) +  
+  scale_y_continuous(limits = c(10, 40), breaks = seq(10, 40, 10)) +  # Set y-axis range and ticks
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 18, face = "bold"),
+    axis.title.x = element_text(size = 16),  
+    axis.title.y = element_text(size = 16),  
+    axis.text.x = element_text(size = 14),  
+    axis.text.y = element_text(size = 14),
+    panel.grid.major = element_blank(),  
+    panel.grid.minor = element_blank(),  
+    panel.border = element_blank(),  
+    axis.line.x = element_line(color = "black", linewidth = 0.5),  
+    axis.line.y = element_line(color = "black", linewidth = 0.5),  
+    axis.ticks = element_line(color = "black")  
+  )
+
+# Boxplot of ssrs scores by site
+sum_stats_ssrs_site <- abcd25l %>%
+  group_by(site) %>%
+  summarise(
+    Mean = mean(ssrs, na.rm = TRUE),
+    Median = median(ssrs, na.rm = TRUE),
+    Min = min(ssrs, na.rm = TRUE),
+    Max = max(ssrs, na.rm = TRUE)
+  )
+ggplot(abcd25l, aes(x = factor(site), y = ssrs, fill = factor(site))) +
+  geom_boxplot(fill = "#528FADFF", outlier.shape = NA) +
+  geom_jitter(width = 0.2, alpha = 0.3) +  
+  labs(title = "11-Item SRS-2 Scores by Site", 
+       x = "Site", 
+       y = "11-Item SRS-2 Score") +
+  scale_y_continuous(limits = c(10, 40), breaks = seq(10, 40, 10)) +  
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 18, face = "bold"),
+    axis.title.x = element_text(size = 16),  
+    axis.title.y = element_text(size = 16),  
+    axis.text.x = element_text(size = 14),  
+    axis.text.y = element_text(size = 14),
+    panel.grid.major = element_blank(),  
+    panel.grid.minor = element_blank(),  
+    panel.border = element_blank(),  
+    axis.line.x = element_line(color = "black", linewidth = 0.5),  
+    axis.line.y = element_line(color = "black", linewidth = 0.5),  
+    axis.ticks = element_line(color = "black")  
+  )
+  
+# Boxplot of ssrs scores by race
+sum_stats_ssrs_race <- abcd25l %>%
+  group_by(race) %>%
+  summarise(
+    Mean = mean(ssrs, na.rm = TRUE),
+    Median = median(ssrs, na.rm = TRUE),
+    Min = min(ssrs, na.rm = TRUE),
+    Max = max(ssrs, na.rm = TRUE)
+  )
+ggplot(abcd25l, aes(x = factor(race), y = ssrs, fill = factor(race))) +
+  geom_boxplot(fill = "#528FADFF", outlier.shape = NA) +
+  geom_jitter(width = 0.2, alpha = 0.3) +  
+  labs(title = "11-Item SRS-2 Scores by Race", 
+       x = "Race/Ethnicity", 
+       y = "11-Item SRS-2 Score") +
+  scale_x_discrete(labels = c("White", "African American", "Hispanic", "Asian", "Mixed/Other", "Unknown/NA")) +  
+  scale_y_continuous(limits = c(10, 40), breaks = seq(10, 40, 10)) +  
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 18, face = "bold"),
+    axis.title.x = element_text(size = 16),  
+    axis.title.y = element_text(size = 16),  
+    axis.text.x = element_text(size = 10),  
+    axis.text.y = element_text(size = 14),
+    panel.grid.major = element_blank(),  
+    panel.grid.minor = element_blank(),  
+    panel.border = element_blank(),  
+    axis.line.x = element_line(color = "black", linewidth = 0.5),  
+    axis.line.y = element_line(color = "black", linewidth = 0.5),  
+    axis.ticks = element_line(color = "black")  
+  )
+
+
+# Histogram of sds scores
+hist(abcd25l$sds, 
+     breaks = seq(26, 72, by = 1), 
+     xaxt = "n",
+     main = "Histogram of SDSC Score", 
+     xlab = "SDSC Total Score", 
+     ylab = "Number of Individuals", 
+     col = "#528FADFF", 
+     border = "black",
+     cex.main = 1.8,  # Increase title size
+     cex.lab = 1.5,   # Increase x and y axis labels size
+     cex.axis = 1.3,
+     ylim = c(0, 200))  # Set y-axis limits
+
+# Customize axis labels
+axis(1, at = seq(26, 72, by = 4), cex.axis = 1.3)
+axis(2, at = seq(0, 200, by = 50), cex.axis = 1.3)
+
+# Boxplot of sds scores by sex
+sum_stats_sds_sex <- abcd25l %>%
+  group_by(sex) %>%
+  summarise(
+    Mean = mean(sds, na.rm = TRUE),
+    Median = median(sds, na.rm = TRUE),
+    Min = min(sds, na.rm = TRUE),
+    Max = max(sds, na.rm = TRUE)
+  )
+ggplot(abcd25l, aes(x = factor(sex), y = sds, fill = factor(sex))) +
+  geom_boxplot(fill = "#528FADFF", outlier.shape = NA) +
+  geom_jitter(width = 0.2, alpha = 0.3) + # Optional: Add jitter to show individual points
+  labs(title = "SDSC Scores by Sex", 
+       x = "Sex", 
+       y = "SDSC Total Score") +
+  scale_x_discrete(labels = c("1" = "Males", "2" = "Females")) +  # Rename x-axis categories
+  scale_y_continuous(limits = c(20, 70), breaks = seq(20, 70, 10)) +  
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 18, face = "bold"),
+    axis.title.x = element_text(size = 16),  
+    axis.title.y = element_text(size = 16),  
+    axis.text.x = element_text(size = 14),  
+    axis.text.y = element_text(size = 14),
+    panel.grid.major = element_blank(),  
+    panel.grid.minor = element_blank(),  
+    panel.border = element_blank(),  
+    axis.line.x = element_line(color = "black", linewidth = 0.5),  # Use linewidth instead of size
+    axis.line.y = element_line(color = "black", linewidth = 0.5),  
+    axis.ticks = element_line(color = "black")  
+  ) # +
+  # Add text for mean and quartiles
+  # geom_text(data = sum_stats_sds_sex, aes(label = paste("Mean: ", round(Mean, 1), 
+  #                             "\nMedian: ", round(Median, 1), 
+  #                             "\nMin: ", round(Min, 1), 
+  #                             "\nMax: ", round(Max, 1)),  
+  #                                    x = factor(sex), y = 200), # Positioning the text above the boxplot
+  #           hjust = 0.5, size = 3, color = "black")
+
+# Boxplot of sds scores by age
+sum_stats_sds_site <- abcd25l %>%
+  group_by(site) %>%
+  summarise(
+    Mean = mean(sds, na.rm = TRUE),
+    Median = median(sds, na.rm = TRUE),
+    Min = min(sds, na.rm = TRUE),
+    Max = max(sds, na.rm = TRUE)
+  )
+ggplot(abcd25l, aes(x = factor(site), y = sds, fill = factor(site))) +
+  geom_boxplot(fill = "#528FADFF", outlier.shape = NA) +
+  geom_jitter(width = 0.2, alpha = 0.3) + # Optional: Add jitter to show individual points
+  labs(title = "SDSC Scores by Site", 
+       x = "Site", 
+       y = "SDSC Total Score") +
+  scale_y_continuous(limits = c(20, 70), breaks = seq(20, 70, 10)) +  
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 18, face = "bold"),
+    axis.title.x = element_text(size = 16),  
+    axis.title.y = element_text(size = 16),  
+    axis.text.x = element_text(size = 14),  
+    axis.text.y = element_text(size = 14),
+    panel.grid.major = element_blank(),  
+    panel.grid.minor = element_blank(),  
+    panel.border = element_blank(),  
+    axis.line.x = element_line(color = "black", linewidth = 0.5),  # Use linewidth instead of size
+    axis.line.y = element_line(color = "black", linewidth = 0.5),  
+    axis.ticks = element_line(color = "black")  
+  ) # +
+  # Add text for mean and quartiles
+  # geom_text(data = sum_stats_sds_age, aes(label = paste("Mean: ", round(Mean, 1), 
+  #                             "\nMedian: ", round(Median, 1), 
+  #                             "\nMin: ", round(Min, 1), 
+  #                             "\nMax: ", round(Max, 1)),  
+  #                                    x = factor(age), y = 200), # Positioning the text above the boxplot
+  #           hjust = 0.5, size = 3, color = "black")
+  
+# Boxplot of sds scores by race
+sum_stats_sds_race <- abcd25l %>%
+  group_by(race) %>%
+  summarise(
+    Mean = mean(sds, na.rm = TRUE),
+    Median = median(sds, na.rm = TRUE),
+    Min = min(sds, na.rm = TRUE),
+    Max = max(sds, na.rm = TRUE)
+  )
+ggplot(abcd25l, aes(x = factor(race), y = sds, fill = factor(race))) +
+  geom_boxplot(fill = "#528FADFF", outlier.shape = NA) +
+  geom_jitter(width = 0.2, alpha = 0.3) + # Optional: Add jitter to show individual points
+  labs(title = "SDSC Scores by Race", 
+       x = "Race/Ethnicity", 
+       y = "SDSC Total Score") +
+  scale_x_discrete(labels = c("White", "African American", "Hispanic", "Asian", "Mixed/Other", "Unknown/NA")) +  # Customize x-axis labels
+  scale_y_continuous(limits = c(20, 70), breaks = seq(20, 70, 10)) +  
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 18, face = "bold"),
+    axis.title.x = element_text(size = 16),  
+    axis.title.y = element_text(size = 16),  
+    axis.text.x = element_text(size = 10),  
+    axis.text.y = element_text(size = 14),
+    panel.grid.major = element_blank(),  
+    panel.grid.minor = element_blank(),  
+    panel.border = element_blank(),  
+    axis.line.x = element_line(color = "black", linewidth = 0.5),  # Use linewidth instead of size
+    axis.line.y = element_line(color = "black", linewidth = 0.5),  
+    axis.ticks = element_line(color = "black")  
+  )
+
+```
+
+```{r}
+# CORRELATION TABLE VCU
+# Updated 5/29/25
+
+# Load Data
+vcu25w_imp <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu25w_imp.csv") # Wide df of all vcu participants with imputed & resiudalized scores w/o demo info as of 3/25/25
+vcu25w_imp_log_inc_07 <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu25w_imp_log_inc_07.csv") # Wide df of all participants including solo pairs as of 5/27/25
+vcu25w_med_imp_log_07 <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu25w_med_imp_log_07.csv") # Median imputation 5/29
+
+vcu_wide_demo <- vcu25w_med_imp_log_07 %>%
+  # left_join(vcu_short_imp %>% select(TID, race, age), by = "TID") %>%
+  filter(zygo != "U") %>% # Removing unknown zygosity pairs
+  mutate(
+    zygo_group = case_when(
+      zygo == "MZ" & sex_T1 == 1 & sex_T2 == 1 ~ 1,  # Male MZ
+      zygo == "MZ" & sex_T1 == 2 & sex_T2 == 2 ~ 2,  # Female MZ
+      zygo == "DZ" & sex_T1 == 1 & sex_T2 == 1 ~ 3,  # Male DZ
+      zygo == "DZ" & sex_T1 == 2 & sex_T2 == 2 ~ 4,  # Female DZ
+      zygo == "DZ" & sex_T1 != sex_T2 ~ 5          # Opposite-sex DZ
+    ))
+
+vars <- c('srs_med_imp','sds_med_imp') # list of variables names
+nv <- 2 # number of variables
+ntv <- nv*2 # number of total variables
+selVars <- paste(vars,c(rep("_T1",nv),rep("_T2",nv)),sep="")
+
+mzfData <- subset(vcu25w_med_imp_log_07, (zygo == "MZ" & sex_T1 == 2 & sex_T2 == 2), select = selVars)
+dzfData <- subset(vcu25w_med_imp_log_07, (zygo == "DZ" & sex_T1 == 2 & sex_T2 == 2), select = selVars)
+mzmData <- subset(vcu25w_med_imp_log_07, (zygo == "MZ" & sex_T1 == 1 & sex_T2 == 1), select = selVars)
+dzmData <- subset(vcu25w_med_imp_log_07, (zygo == "DZ" & sex_T1 == 1 & sex_T2 == 1), select = selVars)
+dzoData <- subset(vcu25w_med_imp_log_07, (zygo == "DZ" & sex_T1 != sex_T2), select = selVars)
+mzData <- subset(vcu25w_med_imp_log_07, (zygo == "MZ"), select = selVars)
+dzData <- subset(vcu25w_med_imp_log_07, (zygo == "DZ"), select = selVars)
+
+cor(mzfData,use="complete")
+cor(dzfData,use="complete")
+cor(mzmData,use="complete")
+cor(dzmData,use="complete")
+cor(dzoData,use="complete")
+cor(mzData,use="complete")
+cor(dzData,use="complete")
+
+
+# Convert from wide to long format
+# Get names of columns ending in _T1 or _T2
+twin_cols <- names(vcu_wide_demo)[grepl("_T[12]$", names(vcu_wide_demo))]
+# Pivot only those columns
+vcu25l_imp <- vcu_wide_demo %>%
+  select(TID, all_of(twin_cols)) %>%
+  pivot_longer(
+    cols = -TID,
+    names_to = c(".value", "Twin"),
+    names_sep = "_T"
+  ) %>%
+  mutate(Twin = paste0("T", Twin)) %>%
+  # Rejoin with shared variables
+  left_join(vcu_wide_demo %>% select(TID, zygo, zygo_group), by = "TID") %>%
+  rename(zygo_group = zygo_group.y)
+
+vars <- c('srs_med_imp','sds_med_imp') # list of variables names
+nv <- 2 # number of variables
+ntv <- nv*2 # number of total variables
+selVars <- paste(vars,c(rep("_T1",nv),rep("_T2",nv)),sep="")
+
+mzfData <- subset(vcu25l_imp, (zygo_group == 2), select = vars)
+dzfData <- subset(vcu25l_imp, (zygo_group == 4), select = vars)
+mzmData <- subset(vcu25l_imp, (zygo_group == 1), select = vars)
+dzmData <- subset(vcu25l_imp, (zygo_group == 3), select = vars)
+dzoData <- subset(vcu25l_imp, (zygo_group == 5), select = vars)
+mzData <- subset(vcu25l_imp, zygo_group %in% c(1, 2), select = vars)
+dzData <- subset(vcu25l_imp, zygo_group %in% c(3, 4, 5), select = vars)
+
+cor(mzfData,use="complete")
+cor(dzfData,use="complete")
+cor(mzmData,use="complete")
+cor(dzmData,use="complete")
+cor(dzoData,use="complete")
+cor(mzData,use="complete")
+cor(dzData,use="complete")
+
+colMeans(mzfData,na.rm=TRUE)
+colMeans(dzfData,na.rm=TRUE)
+colMeans(mzmData,na.rm=TRUE)
+colMeans(dzmData,na.rm=TRUE)
+colMeans(dzoData,na.rm=TRUE)
+colMeans(mzData,na.rm=TRUE)
+colMeans(dzData,na.rm=TRUE)
+
+mean(vcu25l_imp$srs_med_imp)
+mean(vcu25l_imp$sds_med_imp)
+
+sd(vcu25l_imp$srs_med_imp)
+sd(vcu25l_imp$sds_med_imp)
+
+cor(vcu25l_imp$srs_med_imp, vcu25l_imp$sds_med_imp, use = "complete.obs")
+
+
+
+
+```
+
+```{r}
+# CORRELATION AND MEANS ABCD
+
+abcd25w <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/abcd25w.csv")
+abcd_long <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/abcd_long.csv")
+
+# Make zygo_group
+abcd25w <- abcd25w %>%
+  mutate(
+    zygo_group = case_when(
+      zygo == "MZ" & sex_T1 == 1 & sex_T2 == 1 ~ 1,  # Male MZ
+      zygo == "MZ" & sex_T1 == 2 & sex_T2 == 2 ~ 2,  # Female MZ
+      zygo == "DZ" & sex_T1 == 1 & sex_T2 == 1 ~ 3,  # Male DZ
+      zygo == "DZ" & sex_T1 == 2 & sex_T2 == 2 ~ 4,  # Female DZ
+      zygo == "DZ" & sex_T1 != sex_T2 ~ 5          # Opposite-sex DZ
+    )
+  )
+
+# Convert from wide to long format
+abcd25l <- abcd25w %>%
+  pivot_longer(
+    cols = matches("_T[12]$"), # Selects all columns ending in _T1 or _T2
+    names_to = c(".value", "Twin"), # Splits names into the base variable name and twin number
+    names_sep = "_T"
+  ) %>%
+  mutate(Twin = paste0("T", Twin)) # Renaming Twin values to "T1" and "T2" for clarity
+
+# Remove duplicate TIDs for easier merge in wide format
+abcd_short <- abcd_long %>%
+  distinct(TID, .keep_all = TRUE)
+
+abcd25l <- abcd25l %>%
+  left_join(abcd_short %>% select(TID, age, isCA:isOTH), by = "TID") %>%
+  filter(zygo != "U") # Removing unknown zygosity pairs
+
+vars <- c('ssrs','sds') # list of variables names
+nv <- 2 # number of variables
+ntv <- nv*2 # number of total variables
+selVars <- paste(vars,c(rep("_T1",nv),rep("_T2",nv)),sep="")
+
+mzfData <- subset(abcd25w, (zygo == "MZ" & sex_T1 == 2 & sex_T2 == 2), select = selVars)
+dzfData <- subset(abcd25w, (zygo == "DZ" & sex_T1 == 2 & sex_T2 == 2), select = selVars)
+mzmData <- subset(abcd25w, (zygo == "MZ" & sex_T1 == 1 & sex_T2 == 1), select = selVars)
+dzmData <- subset(abcd25w, (zygo == "DZ" & sex_T1 == 1 & sex_T2 == 1), select = selVars)
+dzoData <- subset(abcd25w, (zygo == "DZ" & sex_T1 != sex_T2), select = selVars)
+mzData <- subset(abcd25w, (zygo == "MZ"), select = selVars)
+dzData <- subset(abcd25w, (zygo == "DZ"), select = selVars)
+
+cor(mzfData,use="complete")
+cor(dzfData,use="complete")
+cor(mzmData,use="complete")
+cor(dzmData,use="complete")
+cor(dzoData,use="complete")
+cor(mzData,use="complete")
+cor(dzData,use="complete")
+
+
+vars <- c('ssrs','sds') # list of variables names
+nv <- 2 # number of variables
+ntv <- nv*2 # number of total variables
+
+mzfData <- subset(abcd25l, (zygo_group == 2), select = vars)
+dzfData <- subset(abcd25l, (zygo_group == 4), select = vars)
+mzmData <- subset(abcd25l, (zygo_group == 1), select = vars)
+dzmData <- subset(abcd25l, (zygo_group == 3), select = vars)
+dzoData <- subset(abcd25l, (zygo_group == 5), select = vars)
+mzData <- subset(abcd25l, (zygo_group == "MZ"), select = vars)
+dzData <- subset(abcd25l, (zygo_group == "DZ"), select = vars)
+
+colMeans(mzfData,na.rm=TRUE)
+colMeans(dzfData,na.rm=TRUE)
+colMeans(mzmData,na.rm=TRUE)
+colMeans(dzmData,na.rm=TRUE)
+colMeans(dzoData,na.rm=TRUE)
+colMeans(mzData,na.rm=TRUE)
+colMeans(dzData,na.rm=TRUE)
+
+mean(abcd25l$ssrs)
+mean(abcd25l$sds)
+
+cor(abcd25l$ssrs, abcd25l$sds, use = "complete.obs")
+```
+
+```{r}
+# COUNTING ASD DX, MEAN AGE, SRS and SDSC CUTOFF 4/21/2025
+
+rm(list=ls())
+library(OpenMx)
+library(dplyr)
+library(tidyverse)
+
+vcu_long_imp <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu_long_imp.csv") # Long df of all vcu participants with imputed scores and demo info as of 4/21/25
+vcu25w_imp <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu25w_imp.csv") # Wide df of all vcu participants with imputed & resiudalized scores w/o demo info as of 4/21/25
+
+# Convert from wide to long format
+vcu25l_imp <- vcu25w_imp %>%
+  pivot_longer(
+    cols = matches("_T[12]$"), # Selects all columns ending in _T1 or _T2
+    names_to = c(".value", "Twin"), # Splits names into the base variable name and twin number
+    names_sep = "_T"
+  ) %>%
+  mutate(Twin = paste0("T", Twin)) # Renaming Twin values to "T1" and "T2" for clarity
+
+# Remove duplicate TIDs for easier merge in wide format
+vcu_short_imp <- vcu_long_imp %>%
+  distinct(TID, .keep_all = TRUE)
+
+vcu25l_imp <- vcu25l_imp %>%
+  left_join(vcu_short_imp %>% select(TID, race, age, dx_asd, dx_aspergers), by = "TID") %>%
+  filter(zygo != "U") # Removing unknown zygosity pairs
+
+vcu25l_imp_dx <- vcu25l_imp %>%
+  filter(dx_asd == 1 | dx_aspergers == 1) %>%
+  nrow()
+
+# AGE
+
+# Mean
+mean(vcu25l_imp$age, na.rm = TRUE)
+
+# Standard deviation
+sd(vcu25l_imp$age, na.rm = TRUE)
+
+# Range (returns a vector with min and max)
+range(vcu25l_imp$age, na.rm = TRUE)
+
+# SRS -- cutoff for raw score is 51-57 (115-125)
+sum(vcu25l_imp$srs_imp > 122, na.rm = TRUE)
+
+# SDSC -- cutoff 39 (?) according to Penn
+sum(vcu25l_imp$sds_imp > 39, na.rm = TRUE)
+
+sum(vcu25l_imp$srs_imp > 122 & vcu25l_imp$sds_imp > 39, na.rm = TRUE)
+
+# Mean
+mean(vcu25l_imp$srs_imp, na.rm = TRUE)
+
+# Standard deviation
+sd(vcu25l_imp$srs_imp, na.rm = TRUE)
+
+# Mean
+mean(vcu25l_imp$sds_imp, na.rm = TRUE)
+
+# Standard deviation
+sd(vcu25l_imp$sds_imp, na.rm = TRUE)
+
+# Testing difference by sex
+t.test(srs_imp ~ sex, data = vcu25l_imp)
+
+aov_model <- aov(srs_imp ~ zygo_group, data = vcu25l_imp)
+summary(aov_model)
+
+library(car)
+leveneTest(srs_imp ~ interaction(zygo_group, sex), data = vcu25l_imp)
+```
+

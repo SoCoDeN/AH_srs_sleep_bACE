@@ -1,0 +1,914 @@
+---
+title: "vcu_org_07_log_imptest"
+author: "Amanda Halliday"
+date: "2025-05-27"
+output: html_document
+---
+
+```{r}
+rm(list = ls())
+library(tidyverse)
+library(mice)
+library(OpenMx)
+library(dplyr)
+```
+
+```{r}
+# See vcu_org_07 for previous steps (coding race, organizing into long df)
+
+vcu_long_07 <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu_long_07.csv")
+
+# Score SRS, SSRS, and SDS
+vcu_long <- vcu_long_07 %>%
+  mutate(srs_tot_raw = rowSums(select(., srs_1, srs_2, srs_3, srs_4, srs_5, srs_6, srs_7, srs_8, srs_9, srs_10, srs_11, srs_12, srs_13, srs_14, srs_15, srs_16, srs_17, srs_18, srs_19, srs_20, srs_21, srs_22, srs_23, srs_24, srs_25, srs_26, srs_27, srs_28, srs_29, srs_30, srs_31, srs_32, srs_33, srs_34, srs_35, srs_36, srs_37, srs_38, srs_39, srs_40, srs_41, srs_42, srs_43, srs_44, srs_45, srs_46, srs_47, srs_48, srs_49, srs_50, srs_51, srs_52, srs_53, srs_54, srs_55, srs_56, srs_57, srs_58, srs_59, srs_60, srs_61, srs_62, srs_63, srs_64, srs_65)))
+
+vcu_long <- vcu_long %>%
+  mutate(srs_stot_raw = rowSums(select(., srs_6, srs_15, srs_16, srs_18, srs_24, srs_29, srs_35, srs_37, srs_39, srs_42, srs_58)))
+
+vcu_long <- vcu_long %>%
+  mutate(sds_tot_raw = rowSums(select(., sds_duration:sds_24)))
+
+# Make df with only srs and sds
+vcu_items <- vcu_long %>%
+  select(IID, srs_1:srs_65, sds_duration:sds_24)
+
+# Function to calculate the percentage of missing responses per participant
+pMiss <- function(x) { sum(is.na(x)) / length(x) * 100 }
+
+# Apply the function row-wise to compute missing percentage for each participant
+vcu_items$missing_percent <- apply(vcu_items, 1, pMiss)
+
+# Remove participants that are missing 5% or more of data
+vcu_cleaned <- vcu_items %>% filter(missing_percent < 5)
+
+# Select only the IDs from vcu_cleaned
+ids_to_keep <- vcu_cleaned %>% select(IID)
+
+# Filter to keep only individuals with minimal missing data
+vcu_long_clean <- vcu_long %>% semi_join(ids_to_keep, by = "IID")
+
+# Separate data for srs_tot and srs_stot
+vcu_srs <- vcu_long_clean %>%
+  select(IID, FID, PNUM, TID, zygo, race, age, sex, dx_asd, dx_aspergers, isCA:isOT, srs_1:srs_65, orig_id)
+vcu_sds <- vcu_long_clean %>%
+  select(IID, FID, PNUM, TID, zygo, race, age, sex, dx_asd, dx_aspergers, isCA:isOT, sds_duration:sds_24, orig_id)
+
+# "empty" imputation as a template
+imp0 <- mice(vcu_long_clean, maxit=0)
+pred1 <- imp0$predictorMatrix
+meth1 <- imp0$method
+
+# set imputation procedures --> this is imputing total score only, rather than imputing individual item scores and then creating a new sum
+meth1[c("srs_tot_raw","sds_tot_raw")] <- "2l.pan"
+
+# set predictor Matrix (mixed-effects models with random intercept for FID and fixed effects otherwise)
+pred1[,"FID"] <- -2  # use countryID as cluster variable
+pred1["srs_tot_raw", c("age","race","sds_tot_raw")] <- c(1,1)  # fixed effects (srs)
+pred1["sds_tot_raw", c("age","race","srs_tot_raw")] <- c(1,1)  # fixed effects (sds)
+
+# impute
+imp1 <- mice(vcu_long_clean, maxit=20, m=10, predictorMatrix=pred1, method=meth1)
+
+# # Impute srs and sds
+# pred_matrix_1 <- quickpred(vcu_srs, exclude = c("FID", "PNUM", "TID"))  # Adjust as needed
+# imp_srs <- mice(vcu_srs, method = "cart", pred = pred_matrix_1, m = 1, maxit = 10, seed = 123)
+# 
+# pred_matrix_2 <- quickpred(vcu_sds, exclude = c("FID", "PNUM", "TID"))  # Adjust as needed
+# imp_sds <- mice(vcu_sds, method = "cart", pred = pred_matrix_2, m = 1, maxit = 10, seed = 123)
+# 
+# vcu_srs_imp <- complete(imp_srs)
+# vcu_sds_imp <- complete(imp_sds)
+# 
+# sum(is.na(vcu_srs))  # Count missing values before imputation
+# sum(is.na(complete(imp_srs)))  # Should be 0 if all missing values were imputed
+# 
+# sum(is.na(vcu_sds))  # Count missing values before imputation
+# sum(is.na(complete(imp_sds)))  # Should be 0 if all missing values were imputed
+
+# Score forms now that missing data is imputed
+vcu_srs_imp <- vcu_srs_imp %>%
+  mutate(srs_tot_imp = rowSums(select(., srs_1, srs_2, srs_3, srs_4, srs_5, srs_6, srs_7, srs_8, srs_9, srs_10, srs_11, srs_12, srs_13, srs_14, srs_15, srs_16, srs_17, srs_18, srs_19, srs_20, srs_21, srs_22, srs_23, srs_24, srs_25, srs_26, srs_27, srs_28, srs_29, srs_30, srs_31, srs_32, srs_33, srs_34, srs_35, srs_36, srs_37, srs_38, srs_39, srs_40, srs_41, srs_42, srs_43, srs_44, srs_45, srs_46, srs_47, srs_48, srs_49, srs_50, srs_51, srs_52, srs_53, srs_54, srs_55, srs_56, srs_57, srs_58, srs_59, srs_60, srs_61, srs_62, srs_63, srs_64, srs_65)))
+
+vcu_srs_imp <- vcu_srs_imp %>%
+  mutate(srs_stot_imp = rowSums(select(., srs_6, srs_15, srs_16, srs_18, srs_24, srs_29, srs_35, srs_37, srs_39, srs_42, srs_58)))
+
+vcu_sds_imp <- vcu_sds_imp %>%
+  mutate(sds_tot_imp = rowSums(select(., sds_duration:sds_24))) %>%
+  select(IID, sds_duration:sds_tot_imp)
+
+# Merge with the SRS dataset
+vcu_long_imp_07 <- left_join(vcu_srs_imp, vcu_sds_imp, by = "IID") %>%
+  select(IID:isOT, srs_tot_imp, srs_stot_imp, sds_tot_imp) %>%
+  rename(srs_imp = srs_tot_imp) %>%
+  rename(ssrs_imp = srs_stot_imp) %>%
+  rename(sds_imp = sds_tot_imp)
+```
+
+```{r}
+# ------------------------------------------------------------------------------------------------------------------
+# LOG10 TRANSFORMATION
+  
+  vcu_long_imp_07 <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu_long_imp_07.csv")
+  
+  vcu_long_imp_07$srs_imp_log <- log10(vcu_long_imp_07$srs_imp)
+  vcu_long_imp_07$sds_imp_log <- log10(vcu_long_imp_07$sds_imp)
+
+  
+  # ------------------------------------------------------------------------------------------------------------------
+  # RESIDUALIZE DATA
+  # ------------------------------------------------------------------------------------------------------------------
+  
+  vcu25l_imp <- vcu_long_imp_07
+  
+  # Identify variables of interest
+  vcuVars <- names(vcu25l_imp[, c(17:21)])  # Variables for regression
+  
+  # Perform regression and store residuals
+  for (i in vcuVars) {
+    # Fit linear model
+    temp <- lm(vcu25l_imp[[i]] ~ age + isCA + isAA + isHI + isAS + isMI + isOT, 
+               data = vcu25l_imp, 
+               na.action = na.exclude)
+    
+    # Store residuals in a new column
+    vcu25l_imp[[paste0('r', i)]] <- residuals(temp)
+  }
+  
+  # ------------------------------------------------------------------------------------------------------------------
+  # REMOVE OUTLIERS
+  # ------------------------------------------------------------------------------------------------------------------
+  
+  # Function to standardize variables
+  myStan <- function(x) {
+    (x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE)
+  }
+  
+  # Select the variables to standardize
+  rVars <- names(vcu25l_imp)[22:26] # Standardizing residualized data
+  
+  # Standardize and handle outliers
+  for (var in rVars) {
+    # Standardize the column
+    standardized <- myStan(vcu25l_imp[[var]])
+    
+    # Replace outliers (values beyond ±4 SD) with NA
+    standardized[standardized < -4 | standardized > 4] <- NA
+    
+    # Assign back to the corresponding column in vcu25l
+    vcu25l_imp[[var]] <- standardized
+  }
+  
+  # Count the number of NAs per column
+  na_counts_per_column <- colSums(is.na(vcu25l_imp))
+  print(na_counts_per_column)
+  
+  # # Remove rows with any NA values (outliers)
+  # vcu25l_imp <- na.omit(vcu25l_imp) #long, residualized, standardized
+  
+  # ------------------------------------------------------------------------------------------------------------------
+  # RANDOMIZE TWINS AND MAKE WIDE DATA FRAME (each family has unique row)
+  # ------------------------------------------------------------------------------------------------------------------
+  
+# Step 1: Create a twin number within each pair
+vcu25l_imp <- vcu25l_imp %>%
+  group_by(TID) %>%
+  mutate(twin_num = row_number()) %>%
+  ungroup()
+  
+vcu25l_imp <- vcu25l_imp %>%
+  filter(!(TID == 5570255 & PNUM == 1))
+  
+
+  # Check that each pair has a T1 and a T2 (the result should be empty df)
+  vcu25l_imp %>%
+    group_by(TID, twin_num) %>%
+    summarise(n = n(), .groups = "drop") %>%
+    filter(n != 1)
+
+  # Make separate dfs for T1 and T2
+  vcu25_imp_T1 <- vcu25l_imp %>%
+    filter(twin_num == "1") %>%
+    select(IID:dx_aspergers, srs_imp:twin_num, -PNUM, -FID) %>%
+    rename(
+      IID_T1 = IID,
+      sex_T1 = sex,
+      dx_asd_T1 = dx_asd,
+      dx_aspergers_T1 = dx_aspergers,
+      srs_imp_T1 = srs_imp,
+      sds_imp_T1 = sds_imp,
+      ssrs_imp_T1 = ssrs_imp,
+      srs_imp_log_T1 = srs_imp_log,
+      sds_imp_log_T1 = sds_imp_log,
+      rsrs_imp_T1 = rsrs_imp,
+      rssrs_imp_T1 = rssrs_imp,
+      rsds_imp_T1 = rsds_imp,
+      rsrs_imp_log_T1 = rsrs_imp_log,
+      rsds_imp_log_T1 = rsds_imp_log
+    )
+
+  vcu25_imp_T2 <- vcu25l_imp %>%
+    filter(twin_num == "2") %>%
+    select(IID:dx_aspergers, srs_imp:twin_num, -PNUM, -FID) %>%
+    rename(
+      IID_T2 = IID,
+      sex_T2 = sex,
+      dx_asd_T2 = dx_asd,
+      dx_aspergers_T2 = dx_aspergers,
+      srs_imp_T2 = srs_imp,
+      sds_imp_T2 = sds_imp,
+      ssrs_imp_T2 = ssrs_imp,
+      srs_imp_log_T2 = srs_imp_log,
+      sds_imp_log_T2 = sds_imp_log,
+      rsrs_imp_T2 = rsrs_imp,
+      rssrs_imp_T2 = rssrs_imp,
+      rsds_imp_T2 = rsds_imp,
+      rsrs_imp_log_T2 = rsrs_imp_log,
+      rsds_imp_log_T2 = rsds_imp_log
+    )
+
+  # Putting dfs together
+  vcu25w_imp_log_inc_07 <- merge(vcu25_imp_T1, vcu25_imp_T2, by = "TID") %>%
+    rename(zygo = zygo.x) %>%
+    rename(race = race.x) %>%
+    rename(age = age.x) %>%
+    select(-zygo.y, -twin_num.x, -twin_num.y, -race.y, -age.y) %>%
+    mutate(
+      zygo_group = case_when(
+        zygo == "MZ" & sex_T1 == 1 & sex_T2 == 1 ~ 1,  # Male MZ
+        zygo == "MZ" & sex_T1 == 2 & sex_T2 == 2 ~ 2,  # Female MZ
+        zygo == "DZ" & sex_T1 == 1 & sex_T2 == 1 ~ 3,  # Male DZ
+        zygo == "DZ" & sex_T1 == 2 & sex_T2 == 2 ~ 4,  # Female DZ
+        zygo == "DZ" & sex_T1 != sex_T2 ~ 5          # Opposite-sex DZ
+      )
+    )
+  
+
+  # Save df
+# write.csv(vcu25w_imp_log_inc_07, "/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu25w_imp_log_inc_07.csv", row.names = FALSE)
+  
+  
+  
+  # ------------------------------------------------------------------------------------------------------------------
+  # ALSO NEED TO RESIDUALIZE ON SEX FOR 2 GROUP
+  vcu_long_imp_07 <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu_long_imp_07.csv")
+  
+  vcu_long_imp_07$srs_imp_log <- log10(vcu_long_imp_07$srs_imp)
+  vcu_long_imp_07$sds_imp_log <- log10(vcu_long_imp_07$sds_imp)
+
+  
+  # ------------------------------------------------------------------------------------------------------------------
+  # RESIDUALIZE DATA
+  # ------------------------------------------------------------------------------------------------------------------
+  
+  vcu25l_imp <- vcu_long_imp_07
+  
+  # Identify variables of interest
+  vcuVars <- names(vcu25l_imp[, c(17:21)])  # Variables for regression
+  
+  # Perform regression and store residuals
+  for (i in vcuVars) {
+    # Fit linear model
+    temp <- lm(vcu25l_imp[[i]] ~ sex + age + isCA + isAA + isHI + isAS + isMI + isOT, 
+               data = vcu25l_imp, 
+               na.action = na.exclude)
+    
+    # Store residuals in a new column
+    vcu25l_imp[[paste0('r', i)]] <- residuals(temp)
+  }
+  
+  # ------------------------------------------------------------------------------------------------------------------
+  # REMOVE OUTLIERS
+  # ------------------------------------------------------------------------------------------------------------------
+  
+  # Function to standardize variables
+  myStan <- function(x) {
+    (x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE)
+  }
+  
+  # Select the variables to standardize
+  rVars <- names(vcu25l_imp)[22:26] # Standardizing residualized data
+  
+  # Standardize and handle outliers
+  for (var in rVars) {
+    # Standardize the column
+    standardized <- myStan(vcu25l_imp[[var]])
+    
+    # Replace outliers (values beyond ±4 SD) with NA
+    standardized[standardized < -4 | standardized > 4] <- NA
+    
+    # Assign back to the corresponding column in vcu25l
+    vcu25l_imp[[var]] <- standardized
+  }
+  
+  # Count the number of NAs per column
+  na_counts_per_column <- colSums(is.na(vcu25l_imp))
+  print(na_counts_per_column)
+  
+  # # Remove rows with any NA values (outliers)
+  # vcu25l_imp <- na.omit(vcu25l_imp) #long, residualized, standardized
+  
+  # ------------------------------------------------------------------------------------------------------------------
+  # RANDOMIZE TWINS AND MAKE WIDE DATA FRAME (each family has unique row)
+  # ------------------------------------------------------------------------------------------------------------------
+  
+# Step 1: Create a twin number within each pair
+vcu25l_imp <- vcu25l_imp %>%
+  group_by(TID) %>%
+  mutate(twin_num = row_number()) %>%
+  ungroup()
+  
+vcu25l_imp <- vcu25l_imp %>%
+  filter(!(TID == 5570255 & PNUM == 1))
+  
+
+  # Check that each pair has a T1 and a T2 (the result should be empty df)
+  vcu25l_imp %>%
+    group_by(TID, twin_num) %>%
+    summarise(n = n(), .groups = "drop") %>%
+    filter(n != 1)
+
+  # Make separate dfs for T1 and T2
+  vcu25_imp_T1 <- vcu25l_imp %>%
+    filter(twin_num == "1") %>%
+    select(IID:dx_aspergers, srs_imp:twin_num, -PNUM, -FID) %>%
+    rename(
+      IID_T1 = IID,
+      sex_T1 = sex,
+      dx_asd_T1 = dx_asd,
+      dx_aspergers_T1 = dx_aspergers,
+      srs_imp_T1 = srs_imp,
+      sds_imp_T1 = sds_imp,
+      ssrs_imp_T1 = ssrs_imp,
+      srs_imp_log_T1 = srs_imp_log,
+      sds_imp_log_T1 = sds_imp_log,
+      rsrs_imp_T1 = rsrs_imp,
+      rssrs_imp_T1 = rssrs_imp,
+      rsds_imp_T1 = rsds_imp,
+      rsrs_imp_log_T1 = rsrs_imp_log,
+      rsds_imp_log_T1 = rsds_imp_log
+    )
+
+  vcu25_imp_T2 <- vcu25l_imp %>%
+    filter(twin_num == "2") %>%
+    select(IID:dx_aspergers, srs_imp:twin_num, -PNUM, -FID) %>%
+    rename(
+      IID_T2 = IID,
+      sex_T2 = sex,
+      dx_asd_T2 = dx_asd,
+      dx_aspergers_T2 = dx_aspergers,
+      srs_imp_T2 = srs_imp,
+      sds_imp_T2 = sds_imp,
+      ssrs_imp_T2 = ssrs_imp,
+      srs_imp_log_T2 = srs_imp_log,
+      sds_imp_log_T2 = sds_imp_log,
+      rsrs_imp_T2 = rsrs_imp,
+      rssrs_imp_T2 = rssrs_imp,
+      rsds_imp_T2 = rsds_imp,
+      rsrs_imp_log_T2 = rsrs_imp_log,
+      rsds_imp_log_T2 = rsds_imp_log
+    )
+
+  # Putting dfs together
+  vcu25w_imp_log_inc_sex_07 <- merge(vcu25_imp_T1, vcu25_imp_T2, by = "TID") %>%
+    rename(zygo = zygo.x) %>%
+    rename(race = race.x) %>%
+    rename(age = age.x) %>%
+    select(-zygo.y, -twin_num.x, -twin_num.y, -race.y, -age.y) %>%
+    mutate(
+      zygo_group = case_when(
+        zygo == "MZ" & sex_T1 == 1 & sex_T2 == 1 ~ 1,  # Male MZ
+        zygo == "MZ" & sex_T1 == 2 & sex_T2 == 2 ~ 2,  # Female MZ
+        zygo == "DZ" & sex_T1 == 1 & sex_T2 == 1 ~ 3,  # Male DZ
+        zygo == "DZ" & sex_T1 == 2 & sex_T2 == 2 ~ 4,  # Female DZ
+        zygo == "DZ" & sex_T1 != sex_T2 ~ 5          # Opposite-sex DZ
+      )
+    )
+  
+
+  # Save df
+# write.csv(vcu25w_imp_log_inc_sex_07, "/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu25w_imp_log_inc_sex_07.csv", row.names = FALSE)
+
+```
+
+```{r}
+
+#what is orig_id? --> orig_id is what they are assigned in MATR 8s are twa, 9s are twb
+set.seed(100)
+vcu_long_clean_summary = vcu_long_clean %>%
+  select(FID, TID, zygo, age, sex, isCA:isOT, srs_tot_raw, sds_tot_raw)
+vcu_long_clean_summary$srs_tot_raw=log10(vcu_long_clean_summary$srs_tot_raw)
+vcu_long_clean_summary$sds_tot_raw=log10(vcu_long_clean_summary$sds_tot_raw)
+vcu_long_clean_summary$zygo=as.factor(vcu_long_clean_summary$zygo)
+vcu_long_clean_summary$sex=as.factor(vcu_long_clean_summary$sex)
+vcu_long_clean_summary$isCA=as.factor(vcu_long_clean_summary$isCA)
+vcu_long_clean_summary$isAA=as.factor(vcu_long_clean_summary$isAA)
+vcu_long_clean_summary$isHI=as.factor(vcu_long_clean_summary$isHI)
+vcu_long_clean_summary$isAS=as.factor(vcu_long_clean_summary$isAS)
+vcu_long_clean_summary$isMI=as.factor(vcu_long_clean_summary$isMI)
+vcu_long_clean_summary$isOT=as.factor(vcu_long_clean_summary$isOT)
+
+# "empty" imputation as a template
+imp_summary <- mice(vcu_long_clean_summary, maxit=0)
+pred_summary1 <- imp_summary$predictorMatrix
+meth_summary1 <- imp_summary$method
+
+# set imputation procedures --> this is imputing total score only, rather than imputing individual item scores and then creating a new sum
+meth_summary1[c("srs_tot_raw","sds_tot_raw")] <- "2l.pan"
+
+# set predictor Matrix (mixed-effects models with random intercept for FID and fixed effects otherwise)
+pred_summary1[,"FID"] <- -2  # use countryID as cluster variable
+pred_summary1["srs_tot_raw", colnames(pred_summary1)[3:13]] <- c(1,1,1,1,1,1,1,1,1,1,1)  # fixed effects (srs)
+pred_summary1["sds_tot_raw", colnames(pred_summary1)[3:13]] <- c(1,1,1,1,1,1,1,1,1,1,1)# fixed effects (sds)
+
+
+# impute
+imp1_summary <- mice(vcu_long_clean_summary, maxit=20, m=10, predictorMatrix=pred_summary1, method=meth_summary1)
+
+imp1_summary_data = complete(imp1_summary,2)
+
+densityplot(imp1_summary)
+
+imp1_summary_long <- mice::complete(imp1_summary, action="long", include = TRUE)
+imp1_summary_long_mids<-as.mids(imp1_summary_long)
+
+fitimp <- with(imp1_summary_long_mids,
+               lm(srs_tot_raw ~ age + isCA + isAA + isHI + isAS + isMI + isOT))
+summary(pool(fitimp))
+
+fitimp2 <- with(imp1_summary_long_mids,
+               lm(sds_tot_raw ~ age + isCA + isAA + isHI + isAS + isMI + isOT))
+summary(pool(fitimp2))
+
+imp1_summary_data <- imp1_summary_data %>%
+  rename(srs_imp_new = srs_tot_raw) %>%
+  rename(sds_imp_new = sds_tot_raw)
+```
+
+```{r}
+# Doing resid step and prepping for analysis with new imputed data
+
+  # ------------------------------------------------------------------------------------------------------------------
+  # RESIDUALIZE DATA
+  # ------------------------------------------------------------------------------------------------------------------
+  
+  vcu25l_imp_new <- imp1_summary_data
+  
+  # Identify variables of interest
+  vcuVars <- names(vcu25l_imp_new[, c(12:13)])  # Variables for regression
+  
+  # Perform regression and store residuals
+  for (i in vcuVars) {
+    # Fit linear model
+    temp <- lm(vcu25l_imp_new[[i]] ~ age + isCA + isAA + isHI + isAS + isMI + isOT, 
+               data = vcu25l_imp_new, 
+               na.action = na.exclude)
+    
+    # Store residuals in a new column
+    vcu25l_imp_new[[paste0('r', i)]] <- residuals(temp)
+  }
+  
+  # ------------------------------------------------------------------------------------------------------------------
+  # REMOVE OUTLIERS
+  # ------------------------------------------------------------------------------------------------------------------
+  
+  # Function to standardize variables
+  myStan <- function(x) {
+    (x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE)
+  }
+  
+  # Select the variables to standardize
+  rVars <- names(vcu25l_imp_new)[14:15] # Standardizing residualized data
+  
+  # Standardize and handle outliers
+  for (var in rVars) {
+    # Standardize the column
+    standardized <- myStan(vcu25l_imp_new[[var]])
+    
+    # Replace outliers (values beyond ±4 SD) with NA
+    standardized[standardized < -4 | standardized > 4] <- NA
+    
+    # Assign back to the corresponding column in vcu25l
+    vcu25l_imp_new[[var]] <- standardized
+  }
+  
+  # Count the number of NAs per column
+  na_counts_per_column <- colSums(is.na(vcu25l_imp_new))
+  print(na_counts_per_column)
+  
+  # # Remove rows with any NA values (outliers)
+  # vcu25l_imp_new <- na.omit(vcu25l_imp_new) #long, residualized, standardized
+  
+  # ------------------------------------------------------------------------------------------------------------------
+  # RANDOMIZE TWINS AND MAKE WIDE DATA FRAME (each family has unique row)
+  # ------------------------------------------------------------------------------------------------------------------
+  
+# Step 1: Create a twin number within each pair
+vcu25l_imp_new <- vcu25l_imp_new %>%
+  group_by(TID) %>%
+  mutate(twin_num = row_number()) %>%
+  ungroup()
+  
+vcu25l_imp_new <- vcu25l_imp_new %>%
+  filter(!(TID == 5570255))
+  
+
+  # Check that each pair has a T1 and a T2 (the result should be empty df)
+  vcu25l_imp_new %>%
+    group_by(TID, twin_num) %>%
+    summarise(n = n(), .groups = "drop") %>%
+    filter(n != 1)
+
+  # Make separate dfs for T1 and T2
+  vcu25_imp_T1 <- vcu25l_imp_new %>%
+    filter(twin_num == "1") %>%
+    select(FID:sex, srs_imp_new:rsds_imp_new) %>%
+    rename(
+      sex_T1 = sex,
+      srs_imp_new_T1 = srs_imp_new,
+      sds_imp_new_T1 = sds_imp_new,
+      rsrs_imp_new_T1 = rsrs_imp_new,
+      rsds_imp_new_T1 = rsds_imp_new
+    )
+
+  vcu25_imp_T2 <- vcu25l_imp_new %>%
+    filter(twin_num == "2") %>%
+    select(FID:sex, srs_imp_new:rsds_imp_new) %>%
+    rename(
+      sex_T2 = sex,
+      srs_imp_new_T2 = srs_imp_new,
+      sds_imp_new_T2 = sds_imp_new,
+      rsrs_imp_new_T2 = rsrs_imp_new,
+      rsds_imp_new_T2 = rsds_imp_new
+    )
+
+  # Putting dfs together
+  vcu25w_imp_new_2 <- merge(vcu25_imp_T1, vcu25_imp_T2, by = "TID") %>%
+    rename(zygo = zygo.x) %>%
+    rename(age = age.x) %>%
+    select(-zygo.y, -age.y) %>%
+    mutate(
+      zygo_group = case_when(
+        zygo == "MZ" & sex_T1 == 1 & sex_T2 == 1 ~ 1,  # Male MZ
+        zygo == "MZ" & sex_T1 == 2 & sex_T2 == 2 ~ 2,  # Female MZ
+        zygo == "DZ" & sex_T1 == 1 & sex_T2 == 1 ~ 3,  # Male DZ
+        zygo == "DZ" & sex_T1 == 2 & sex_T2 == 2 ~ 4,  # Female DZ
+        zygo == "DZ" & sex_T1 != sex_T2 ~ 5          # Opposite-sex DZ
+      )
+    )
+  
+
+  # Save df
+# write.csv(vcu25w_imp_log_inc_07, "/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu25w_imp_log_inc_07.csv", row.names = FALSE)
+  
+  
+  
+  # ------------------------------------------------------------------------------------------------------------------
+  # ALSO NEED TO RESIDUALIZE ON SEX FOR 2 GROUP
+   vcu25l_imp_new <- imp1_summary_data
+  
+  # Identify variables of interest
+  vcuVars <- names(vcu25l_imp_new[, c(12:13)])  # Variables for regression
+  
+  # Perform regression and store residuals
+  for (i in vcuVars) {
+    # Fit linear model
+    temp <- lm(vcu25l_imp_new[[i]] ~ sex + age + isCA + isAA + isHI + isAS + isMI + isOT, 
+               data = vcu25l_imp_new, 
+               na.action = na.exclude)
+    
+    # Store residuals in a new column
+    vcu25l_imp_new[[paste0('r', i)]] <- residuals(temp)
+  }
+  
+  # ------------------------------------------------------------------------------------------------------------------
+  # REMOVE OUTLIERS
+  # ------------------------------------------------------------------------------------------------------------------
+  
+  # Function to standardize variables
+  myStan <- function(x) {
+    (x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE)
+  }
+  
+  # Select the variables to standardize
+  rVars <- names(vcu25l_imp_new)[14:15] # Standardizing residualized data
+  
+  # Standardize and handle outliers
+  for (var in rVars) {
+    # Standardize the column
+    standardized <- myStan(vcu25l_imp_new[[var]])
+    
+    # Replace outliers (values beyond ±4 SD) with NA
+    standardized[standardized < -4 | standardized > 4] <- NA
+    
+    # Assign back to the corresponding column in vcu25l
+    vcu25l_imp_new[[var]] <- standardized
+  }
+  
+  # Count the number of NAs per column
+  na_counts_per_column <- colSums(is.na(vcu25l_imp_new))
+  print(na_counts_per_column)
+  
+  # # Remove rows with any NA values (outliers)
+  # vcu25l_imp_new <- na.omit(vcu25l_imp_new) #long, residualized, standardized
+  
+  # ------------------------------------------------------------------------------------------------------------------
+  # RANDOMIZE TWINS AND MAKE WIDE DATA FRAME (each family has unique row)
+  # ------------------------------------------------------------------------------------------------------------------
+  
+# Step 1: Create a twin number within each pair
+vcu25l_imp_new <- vcu25l_imp_new %>%
+  group_by(TID) %>%
+  mutate(twin_num = row_number()) %>%
+  ungroup()
+  
+vcu25l_imp_new <- vcu25l_imp_new %>%
+  filter(!(TID == 5570255))
+  
+
+  # Check that each pair has a T1 and a T2 (the result should be empty df)
+  vcu25l_imp_new %>%
+    group_by(TID, twin_num) %>%
+    summarise(n = n(), .groups = "drop") %>%
+    filter(n != 1)
+
+  # Make separate dfs for T1 and T2
+  vcu25_imp_T1 <- vcu25l_imp_new %>%
+    filter(twin_num == "1") %>%
+    select(FID:sex, srs_imp_new:rsds_imp_new) %>%
+    rename(
+      sex_T1 = sex,
+      srs_imp_new_T1 = srs_imp_new,
+      sds_imp_new_T1 = sds_imp_new,
+      rsrs_imp_new_T1 = rsrs_imp_new,
+      rsds_imp_new_T1 = rsds_imp_new
+    )
+
+  vcu25_imp_T2 <- vcu25l_imp_new %>%
+    filter(twin_num == "2") %>%
+    select(FID:sex, srs_imp_new:rsds_imp_new) %>%
+    rename(
+      sex_T2 = sex,
+      srs_imp_new_T2 = srs_imp_new,
+      sds_imp_new_T2 = sds_imp_new,
+      rsrs_imp_new_T2 = rsrs_imp_new,
+      rsds_imp_new_T2 = rsds_imp_new
+    )
+
+  # Putting dfs together
+  vcu25w_imp_new_sex_2 <- merge(vcu25_imp_T1, vcu25_imp_T2, by = "TID") %>%
+    rename(zygo = zygo.x) %>%
+    rename(age = age.x) %>%
+    select(-zygo.y, -age.y) %>%
+    mutate(
+      zygo_group = case_when(
+        zygo == "MZ" & sex_T1 == 1 & sex_T2 == 1 ~ 1,  # Male MZ
+        zygo == "MZ" & sex_T1 == 2 & sex_T2 == 2 ~ 2,  # Female MZ
+        zygo == "DZ" & sex_T1 == 1 & sex_T2 == 1 ~ 3,  # Male DZ
+        zygo == "DZ" & sex_T1 == 2 & sex_T2 == 2 ~ 4,  # Female DZ
+        zygo == "DZ" & sex_T1 != sex_T2 ~ 5          # Opposite-sex DZ
+      )
+    )
+  
+   # Save df
+# write.csv(vcu25w_imp_log_inc_07, "/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu25w_imp_log_inc_07.csv", row.names = FALSE)
+  
+  
+```
+
+```{r}
+# Impute using median
+
+vcu_long_07 <- read_csv("/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu_long_07.csv")
+
+# Score SRS, SSRS, and SDS
+vcu_long <- vcu_long_07 %>%
+  mutate(srs_tot_raw = rowSums(select(., srs_1, srs_2, srs_3, srs_4, srs_5, srs_6, srs_7, srs_8, srs_9, srs_10, srs_11, srs_12, srs_13, srs_14, srs_15, srs_16, srs_17, srs_18, srs_19, srs_20, srs_21, srs_22, srs_23, srs_24, srs_25, srs_26, srs_27, srs_28, srs_29, srs_30, srs_31, srs_32, srs_33, srs_34, srs_35, srs_36, srs_37, srs_38, srs_39, srs_40, srs_41, srs_42, srs_43, srs_44, srs_45, srs_46, srs_47, srs_48, srs_49, srs_50, srs_51, srs_52, srs_53, srs_54, srs_55, srs_56, srs_57, srs_58, srs_59, srs_60, srs_61, srs_62, srs_63, srs_64, srs_65)))
+
+vcu_long <- vcu_long %>%
+  mutate(srs_stot_raw = rowSums(select(., srs_6, srs_15, srs_16, srs_18, srs_24, srs_29, srs_35, srs_37, srs_39, srs_42, srs_58)))
+
+vcu_long <- vcu_long %>%
+  mutate(sds_tot_raw = rowSums(select(., sds_duration:sds_24)))
+
+# Step 1: Clean based on missingness
+vcu_items <- vcu_long %>%
+  select(IID, srs_1:srs_65, sds_duration:sds_24)
+
+vcu_items <- vcu_items %>%
+  mutate(missing_percent = apply(., 1, function(x) sum(is.na(x)) / length(x) * 100))
+
+vcu_cleaned <- vcu_items %>% filter(missing_percent < 5)
+
+# Step 2: Impute row-wise (by participant) medians
+vcu_imputed <- vcu_cleaned %>%
+  rowwise() %>%
+  mutate(across(starts_with("srs_"), ~ ifelse(is.na(.), median(c_across(starts_with("srs_")), na.rm = TRUE), .))) %>%
+  mutate(across(matches("^sds_"), ~ ifelse(is.na(.), median(c_across(matches("^sds_")), na.rm = TRUE), .))) %>%
+  ungroup()
+
+# Score SRS and SDS
+vcu_imputed <- vcu_imputed %>%
+  mutate(srs_med = rowSums(select(., srs_1, srs_2, srs_3, srs_4, srs_5, srs_6, srs_7, srs_8, srs_9, srs_10, srs_11, srs_12, srs_13, srs_14, srs_15, srs_16, srs_17, srs_18, srs_19, srs_20, srs_21, srs_22, srs_23, srs_24, srs_25, srs_26, srs_27, srs_28, srs_29, srs_30, srs_31, srs_32, srs_33, srs_34, srs_35, srs_36, srs_37, srs_38, srs_39, srs_40, srs_41, srs_42, srs_43, srs_44, srs_45, srs_46, srs_47, srs_48, srs_49, srs_50, srs_51, srs_52, srs_53, srs_54, srs_55, srs_56, srs_57, srs_58, srs_59, srs_60, srs_61, srs_62, srs_63, srs_64, srs_65)))
+
+vcu_imputed <- vcu_imputed %>%
+  mutate(sds_med = rowSums(select(., sds_duration:sds_24)))
+
+# Step 3: Merge with previous dataset to keep demographic variables
+
+# Rename imputed items before joining
+vcu_imputed_renamed <- vcu_imputed %>%
+  rename_with(~ paste0(.x, "_imp"), matches("^srs_|^sds_"))
+
+# Join with full data
+vcu_long_imp_med_07 <- left_join(vcu_imputed_renamed, vcu_long, by = "IID")
+
+vcu_long_imp_med_07$srs_imp_med_log <- log10(vcu_long_imp_med_07$srs_med_imp)
+vcu_long_imp_med_07$sds_imp_med_log <- log10(vcu_long_imp_med_07$sds_med_imp)
+
+  
+  # ------------------------------------------------------------------------------------------------------------------
+  # RESIDUALIZE DATA
+  # ------------------------------------------------------------------------------------------------------------------
+  
+  vcu25l_imp <- vcu_long_imp_med_07
+  
+  # Identify variables of interest
+  vcuVars <- names(vcu25l_imp[, c(207:208)])  # Variables for regression
+  
+  # Perform regression and store residuals
+  for (i in vcuVars) {
+    # Fit linear model
+    temp <- lm(vcu25l_imp[[i]] ~ age + isCA + isAA + isHI + isAS + isMI + isOT, 
+               data = vcu25l_imp, 
+               na.action = na.exclude)
+    
+    # Store residuals in a new column
+    vcu25l_imp[[paste0('r', i)]] <- residuals(temp)
+  }
+  
+  # ------------------------------------------------------------------------------------------------------------------
+  # REMOVE OUTLIERS
+  # ------------------------------------------------------------------------------------------------------------------
+  
+  # Function to standardize variables
+  myStan <- function(x) {
+    (x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE)
+  }
+  
+  # Select the variables to standardize
+  rVars <- names(vcu25l_imp)[209:210] # Standardizing residualized data
+  
+  # Standardize and handle outliers
+  for (var in rVars) {
+    # Standardize the column
+    standardized <- myStan(vcu25l_imp[[var]])
+    
+    # Replace outliers (values beyond ±4 SD) with NA
+    standardized[standardized < -4 | standardized > 4] <- NA
+    
+    # Assign back to the corresponding column in vcu25l
+    vcu25l_imp[[var]] <- standardized
+  }
+  
+  # Count the number of NAs per column
+  na_counts_per_column <- colSums(is.na(vcu25l_imp))
+  print(na_counts_per_column)
+  
+  # # Remove rows with any NA values (outliers)
+  # vcu25l_imp <- na.omit(vcu25l_imp) #long, residualized, standardized
+  
+  # ------------------------------------------------------------------------------------------------------------------
+  # RANDOMIZE TWINS AND MAKE WIDE DATA FRAME (each family has unique row)
+  # ------------------------------------------------------------------------------------------------------------------
+  
+# Step 1: Create a twin number within each pair
+vcu25l_imp <- vcu25l_imp %>%
+  group_by(TID) %>%
+  mutate(twin_num = row_number()) %>%
+  ungroup()
+  
+vcu25l_imp <- vcu25l_imp %>%
+  filter(!(TID == 5570255 & PNUM == 1))
+  
+
+  # Check that each pair has a T1 and a T2 (the result should be empty df)
+  vcu25l_imp %>%
+    group_by(TID, twin_num) %>%
+    summarise(n = n(), .groups = "drop") %>%
+    filter(n != 1)
+
+  # Make separate dfs for T1 and T2
+vcu25_imp_T1 <- vcu25l_imp %>%
+  filter(twin_num == "1") %>%
+  rename_with(~ paste0(.x, "_T1")) %>%
+  rename(TID = TID_T1)
+
+vcu25_imp_T2 <- vcu25l_imp %>%
+  filter(twin_num == "2") %>%
+  rename_with(~ paste0(.x, "_T2")) %>%
+  rename(TID = TID_T2)
+
+  # Putting dfs together
+  vcu25w_med_imp_log_07 <- merge(vcu25_imp_T1, vcu25_imp_T2, by = "TID") %>%
+    rename(zygo = zygo_T1) %>%
+    select(-zygo_T2)
+  
+
+  # Save df
+ write.csv(vcu25w_med_imp_log_07, "/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu25w_med_imp_log_07.csv", row.names = FALSE)
+ 
+ # Need to add sex to resid
+ 
+   # ------------------------------------------------------------------------------------------------------------------
+  # RESIDUALIZE DATA
+  # ------------------------------------------------------------------------------------------------------------------
+  
+  vcu25l_imp <- vcu_long_imp_med_07
+  
+  # Identify variables of interest
+  vcuVars <- names(vcu25l_imp[, c(207:208)])  # Variables for regression
+  
+  # Perform regression and store residuals
+  for (i in vcuVars) {
+    # Fit linear model
+    temp <- lm(vcu25l_imp[[i]] ~ sex + age + isCA + isAA + isHI + isAS + isMI + isOT, 
+               data = vcu25l_imp, 
+               na.action = na.exclude)
+    
+    # Store residuals in a new column
+    vcu25l_imp[[paste0('r', i)]] <- residuals(temp)
+  }
+  
+  # ------------------------------------------------------------------------------------------------------------------
+  # REMOVE OUTLIERS
+  # ------------------------------------------------------------------------------------------------------------------
+  
+  # Function to standardize variables
+  myStan <- function(x) {
+    (x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE)
+  }
+  
+  # Select the variables to standardize
+  rVars <- names(vcu25l_imp)[209:210] # Standardizing residualized data
+  
+  # Standardize and handle outliers
+  for (var in rVars) {
+    # Standardize the column
+    standardized <- myStan(vcu25l_imp[[var]])
+    
+    # Replace outliers (values beyond ±4 SD) with NA
+    standardized[standardized < -4 | standardized > 4] <- NA
+    
+    # Assign back to the corresponding column in vcu25l
+    vcu25l_imp[[var]] <- standardized
+  }
+  
+  # Count the number of NAs per column
+  na_counts_per_column <- colSums(is.na(vcu25l_imp))
+  print(na_counts_per_column)
+  
+  # # Remove rows with any NA values (outliers)
+  # vcu25l_imp <- na.omit(vcu25l_imp) #long, residualized, standardized
+  
+  # ------------------------------------------------------------------------------------------------------------------
+  # RANDOMIZE TWINS AND MAKE WIDE DATA FRAME (each family has unique row)
+  # ------------------------------------------------------------------------------------------------------------------
+  
+# Step 1: Create a twin number within each pair
+vcu25l_imp <- vcu25l_imp %>%
+  group_by(TID) %>%
+  mutate(twin_num = row_number()) %>%
+  ungroup()
+  
+vcu25l_imp <- vcu25l_imp %>%
+  filter(!(TID == 5570255 & PNUM == 1))
+  
+
+  # Check that each pair has a T1 and a T2 (the result should be empty df)
+  vcu25l_imp %>%
+    group_by(TID, twin_num) %>%
+    summarise(n = n(), .groups = "drop") %>%
+    filter(n != 1)
+
+  # Make separate dfs for T1 and T2
+vcu25_imp_T1 <- vcu25l_imp %>%
+  filter(twin_num == "1") %>%
+  rename_with(~ paste0(.x, "_T1")) %>%
+  rename(TID = TID_T1)
+
+vcu25_imp_T2 <- vcu25l_imp %>%
+  filter(twin_num == "2") %>%
+  rename_with(~ paste0(.x, "_T2")) %>%
+  rename(TID = TID_T2)
+
+ # Putting dfs together
+  vcu25w_med_imp_log_sex_07 <- merge(vcu25_imp_T1, vcu25_imp_T2, by = "TID") %>%
+    rename(zygo = zygo_T1) %>%
+    select(-zygo_T2)
+
+  # Save df
+ write.csv(vcu25w_med_imp_log_sex_07, "/Volumes/SoCoDeN/SSCDN_Private/data/VCU_MATR/Amanda_analysis/01_tidy_data/vcu25w_med_imp_log_sex_07.csv", row.names = FALSE)
+
+
+```
+
